@@ -6,12 +6,39 @@ local RunService = game:GetService("RunService")
 
 -- GAME SERVICES
 local char = player.Character or player.CharacterAdded:Wait()
-local Event = player.Character.NetMessage.TrigerSkill
-local entityfolder = workspace:FindFirstChild("Entity")
 local hrp = char:WaitForChild("HumanoidRootPart")
+local entityfolder = workspace:FindFirstChild("Entity")
 local cachedArg1 = nil
 local currentTarget = nil
 local loot = workspace.FX
+
+-- Dynamic Event Locator (Resolves issues where the Event changes on weapon swap/death)
+local function getEvent()
+    if not char then return nil end
+    local netMessage = char:FindFirstChild("NetMessage")
+    if netMessage then
+        return netMessage:FindFirstChild("TrigerSkill")
+    end
+    return nil
+end
+
+-- Handle Character Respawn and Weapon Switching
+local function setupCharacter(newChar)
+    char = newChar
+    hrp = newChar:WaitForChild("HumanoidRootPart")
+    
+    newChar.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            -- Reset weapon code cache on tool swap so it recalculates
+            cachedArg1 = nil
+        end
+    end)
+end
+
+player.CharacterAdded:Connect(setupCharacter)
+if player.Character then
+    task.spawn(setupCharacter, player.Character)
+end
 
 -- STATE CONTROLS
 local IsRunning = true
@@ -20,6 +47,8 @@ local features = {
     AutoFarm = false,
     AutoPickup = false
 }
+local farmOffset = CFrame.new(0, 0, -6.5) -- Jarak teleport AutoFarm (Di depan musuh, sekitar -6.5 agar tidak terkena hit tapi Kill Aura tetap cepat)
+local killAuraRange = 100 -- Jarak deteksi maksimal Kill Aura (Ubah angka ini jika ingin memperpendek/memperpanjang jarak serang)
 
 -- THEME CONFIGURATION (Crimson Red for Cursed Blade)
 local ThemeColor = Color3.fromRGB(255, 75, 75)
@@ -408,7 +437,7 @@ notify("Loaded", "Angels - Cursed Blade Loaded Successfully", 5)
 
 local function Entity(radius)
     local entity = {}
-    if not entityfolder then return entity end
+    if not entityfolder or not hrp then return entity end
     for _, v in ipairs(entityfolder:GetChildren()) do
         local Entityhrp = v:FindFirstChild("HumanoidRootPart")
         local EntityHumanoid = v:FindFirstChild("Humanoid")
@@ -430,7 +459,7 @@ local oldnamecall
 oldnamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local args = {...}
     local method = getnamecallmethod()
-    if method == "FireServer" and self.Name == "Trigerskill" then
+    if method == "FireServer" and string.lower(self.Name) == "trigerskill" then
         cachedArg1 = args[1]
     end
     return oldnamecall(self, ...)
@@ -443,9 +472,9 @@ end)
 task.spawn(function()
     while IsRunning do
         task.wait()
-        if features.AutoPickup then
+        if features.AutoPickup and hrp then
             for _, touch in ipairs(loot:GetDescendants()) do
-                if not IsRunning or not features.AutoPickup then break end
+                if not IsRunning or not features.AutoPickup or not hrp then break end
                 if touch:IsA("TouchTransmitter") then
                     local part = touch.Parent
                     if part and part:IsA("BasePart") then
@@ -466,7 +495,7 @@ end)
 task.spawn(function()
     while IsRunning do
         task.wait()
-        if features.AutoFarm then
+        if features.AutoFarm and hrp then
             if killAuraToggle then
                 killAuraToggle.Set(true)
             end
@@ -505,7 +534,7 @@ task.spawn(function()
             if currentTarget then
                 local targetHRP = currentTarget:FindFirstChild("HumanoidRootPart")
                 if targetHRP then
-                    hrp.CFrame = targetHRP.CFrame * CFrame.new(0, 0, 3)
+                    hrp.CFrame = targetHRP.CFrame * farmOffset
                 end
             end
         else
@@ -518,34 +547,60 @@ end)
 -- KILL AURA EXECUTION
 --================================================================
 
+local function fireKillAuraEvent(target)
+    local currentEvent = getEvent()
+    if not currentEvent or not target then return end
+    local targetHRP = target:FindFirstChild("HumanoidRootPart")
+    if not targetHRP then return end
+    local cf = targetHRP.CFrame
+
+    if cachedArg1 then
+        if cachedArg1 == 102 then
+            -- Bow (102) targets the "Collision" part inside the enemy model
+            local hitTarget = target:FindFirstChild("Collision") or targetHRP or target
+            currentEvent:FireServer(102, "Atk", hitTarget, {})
+        else
+            -- Sword (101) & Staff (103) require CFrame
+            currentEvent:FireServer(cachedArg1, "Enter", cf, 1)
+        end
+    else
+        -- If cachedArg1 is nil, fire default skills for all known weapons
+        local hitTarget = target:FindFirstChild("Collision") or targetHRP or target
+        currentEvent:FireServer(101, "Enter", cf, 1)
+        currentEvent:FireServer(103, "Enter", cf, 1)
+        currentEvent:FireServer(102, "Atk", hitTarget, {})
+    end
+end
+
 task.spawn(function()
     while IsRunning do
         task.wait(0.05)
-        if features.KillAura then
+        if features.KillAura and hrp then
             if currentTarget then
                 local targetHRP = currentTarget:FindFirstChild("HumanoidRootPart")
                 local targetHum = currentTarget:FindFirstChild("Humanoid")
 
                 if targetHRP and targetHum and targetHum.Health > 0 then
-                    Event:FireServer(
-                        cachedArg1 or 101,
-                        "Enter",
-                        hrp.CFrame,
-                        1
-                    )
+                    fireKillAuraEvent(currentTarget)
                 end
             else
-                local entities = Entity(700) -- Increased range (default was 100)
+                local entities = Entity(killAuraRange)
+                local closest = nil
+                local shortest = math.huge
                 for _, v in ipairs(entities) do
-                    if not IsRunning or not features.KillAura then break end
                     local targetHRP = v:FindFirstChild("HumanoidRootPart")
                     if targetHRP then
-                        Event:FireServer(
-                            cachedArg1 or 101,
-                            "Enter",
-                            hrp.CFrame,
-                            1
-                        )
+                        local dist = (hrp.Position - targetHRP.Position).Magnitude
+                        if dist < shortest then
+                            shortest = dist
+                            closest = v
+                        end
+                    end
+                end
+                if closest then
+                    local targetHRP = closest:FindFirstChild("HumanoidRootPart")
+                    if targetHRP then
+                        fireKillAuraEvent(closest)
                     end
                 end
             end
