@@ -505,7 +505,7 @@ task.spawn(function()
             if currentTarget then
                 local targetHRP = currentTarget:FindFirstChild("HumanoidRootPart")
                 if targetHRP then
-                    hrp.CFrame = targetHRP.CFrame * CFrame.new(0, 0, -3)
+                    hrp.CFrame = targetHRP.CFrame * CFrame.new(0, 0, 3)
                 end
             end
         else
@@ -535,7 +535,7 @@ task.spawn(function()
                     )
                 end
             else
-                local entities = Entity(350) -- Increased range (default was 100)
+                local entities = Entity(700) -- Increased range (default was 100)
                 for _, v in ipairs(entities) do
                     if not IsRunning or not features.KillAura then break end
                     local targetHRP = v:FindFirstChild("HumanoidRootPart")
