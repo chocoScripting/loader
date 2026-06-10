@@ -45,7 +45,8 @@ local IsRunning = true
 local features = {
     KillAura = false,
     AutoFarm = false,
-    AutoPickup = false
+    AutoPickup = false,
+    InfiniteRange = false
 }
 local farmOffset = CFrame.new(0, 7, 0) -- Jarak teleport AutoFarm (Di atas musuh agar tidak terkena hit)
 local killAuraRange = 100 -- Jarak deteksi maksimal Kill Aura (Ubah angka ini jika ingin memperpendek/memperpanjang jarak serang)
@@ -72,6 +73,7 @@ end)()
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "CursedBladeUI"
 screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = parentGui
 
 -- Notification Frame & Layout
@@ -150,8 +152,8 @@ end
 -- Main Frame (Draggable)
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 300, 0, 230)
-mainFrame.Position = UDim2.new(0.5, -150, 0.5, -115)
+mainFrame.Size = UDim2.new(0, 300, 0, 350)
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 mainFrame.BackgroundTransparency = 0.05
 mainFrame.BorderSizePixel = 0
@@ -401,6 +403,173 @@ local function createButton(parent, text, callback)
     return btnFrame
 end
 
+local function createDropdown(parent, placeholderText, scanCallback, selectCallback)
+    local dropdownFrame = Instance.new("Frame")
+    dropdownFrame.Name = "DropdownFrame"
+    dropdownFrame.Size = UDim2.new(1, 0, 0, 36)
+    dropdownFrame.BackgroundTransparency = 1
+    dropdownFrame.Parent = parent
+
+    local button = Instance.new("TextButton")
+    button.Name = "DropdownButton"
+    button.Size = UDim2.new(1, 0, 0, 30)
+    button.Position = UDim2.new(0, 0, 0.5, -15)
+    button.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+    button.TextColor3 = Color3.fromRGB(230, 230, 230)
+    button.Text = placeholderText .. "  ▼"
+    button.Font = Enum.Font.GothamMedium
+    button.TextSize = 13
+    button.BorderSizePixel = 0
+    button.Parent = dropdownFrame
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = button
+
+    local btnStroke = Instance.new("UIStroke")
+    btnStroke.Color = Color3.fromRGB(80, 80, 90)
+    btnStroke.Thickness = 1
+    btnStroke.Parent = button
+
+    -- List container (floating)
+    local listContainer = Instance.new("ScrollingFrame")
+    listContainer.Name = "DropdownList"
+    listContainer.Size = UDim2.new(1, 0, 0, 120)
+    listContainer.Position = UDim2.new(0, 0, 1, 5)
+    listContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    listContainer.BorderSizePixel = 0
+    listContainer.ZIndex = 100
+    listContainer.Visible = false
+    listContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+    listContainer.ScrollBarThickness = 4
+    listContainer.ScrollBarImageColor3 = ThemeColor
+    listContainer.Parent = dropdownFrame
+
+    local listCorner = Instance.new("UICorner")
+    listCorner.CornerRadius = UDim.new(0, 8)
+    listCorner.Parent = listContainer
+
+    local listStroke = Instance.new("UIStroke")
+    listStroke.Color = ThemeColor
+    listStroke.Thickness = 1
+    listStroke.Parent = listContainer
+
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Padding = UDim.new(0, 2)
+    listLayout.Parent = listContainer
+
+    local listPadding = Instance.new("UIPadding")
+    listPadding.PaddingTop = UDim.new(0, 4)
+    listPadding.PaddingBottom = UDim.new(0, 4)
+    listPadding.PaddingLeft = UDim.new(0, 6)
+    listPadding.PaddingRight = UDim.new(0, 6)
+    listPadding.Parent = listContainer
+
+    local isOpen = false
+    local selectedOption = nil
+
+    local function toggleDropdown()
+        isOpen = not isOpen
+        if isOpen then
+            dropdownFrame.ZIndex = 10
+            button.ZIndex = 10
+            listContainer.ZIndex = 11
+
+            -- Clear previous items
+            for _, child in ipairs(listContainer:GetChildren()) do
+                if child:IsA("TextButton") then
+                    child:Destroy()
+                end
+            end
+
+            -- Scan/Get options
+            local options = scanCallback()
+            if #options == 0 then
+                local noItem = Instance.new("TextButton")
+                noItem.Size = UDim2.new(1, 0, 0, 28)
+                noItem.BackgroundTransparency = 1
+                noItem.Text = "No Merchants Found"
+                noItem.TextColor3 = Color3.fromRGB(150, 150, 150)
+                noItem.Font = Enum.Font.GothamItalic
+                noItem.TextSize = 12
+                noItem.ZIndex = 12
+                noItem.Parent = listContainer
+            else
+                for _, option in ipairs(options) do
+                    local optBtn = Instance.new("TextButton")
+                    optBtn.Size = UDim2.new(1, 0, 0, 28)
+                    optBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+                    optBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
+                    optBtn.Text = option.Name
+                    optBtn.Font = Enum.Font.GothamMedium
+                    optBtn.TextSize = 12
+                    optBtn.ZIndex = 12
+                    optBtn.Parent = listContainer
+
+                    local optCorner = Instance.new("UICorner")
+                    optCorner.CornerRadius = UDim.new(0, 4)
+                    optCorner.Parent = optBtn
+
+                    optBtn.MouseButton1Click:Connect(function()
+                        selectedOption = option.Value
+                        button.Text = option.Name .. "  ▼"
+                        isOpen = false
+                        dropdownFrame.ZIndex = 1
+                        button.ZIndex = 1
+                        listContainer.ZIndex = 1
+                        listContainer.Visible = false
+                        btnStroke.Color = Color3.fromRGB(80, 80, 90)
+                        selectCallback(option.Value)
+                    end)
+
+                    optBtn.MouseEnter:Connect(function()
+                        optBtn.BackgroundColor3 = ThemeColor
+                        optBtn.TextColor3 = Color3.fromRGB(15, 15, 20)
+                    end)
+
+                    optBtn.MouseLeave:Connect(function()
+                        optBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+                        optBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
+                    end)
+                end
+            end
+
+            -- Adjust canvas size based on content
+            task.defer(function()
+                listContainer.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
+            end)
+
+            listContainer.Visible = true
+            btnStroke.Color = ThemeColor
+        else
+            dropdownFrame.ZIndex = 1
+            button.ZIndex = 1
+            listContainer.ZIndex = 1
+            listContainer.Visible = false
+            btnStroke.Color = Color3.fromRGB(80, 80, 90)
+        end
+    end
+
+    button.MouseButton1Click:Connect(toggleDropdown)
+
+    button.MouseEnter:Connect(function()
+        if not isOpen then
+            button.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+            btnStroke.Color = ThemeColor
+        end
+    end)
+
+    button.MouseLeave:Connect(function()
+        if not isOpen then
+            button.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+            btnStroke.Color = Color3.fromRGB(80, 80, 90)
+        end
+    end)
+
+    return dropdownFrame
+end
+
 -- Build Controls
 local killAuraToggle
 killAuraToggle = createToggle(contentFrame, "Kill Aura", false, function(value)
@@ -420,11 +589,95 @@ autoPickupToggle = createToggle(contentFrame, "Auto Pickup", false, function(val
     notify("Auto Pickup", value and "Enabled" or "Disabled", 3)
 end)
 
+local infiniteRangeToggle
+infiniteRangeToggle = createToggle(contentFrame, "Infinite Range", false, function(value)
+    features.InfiniteRange = value
+    notify("Infinite Range", value and "Enabled" or "Disabled", 3)
+end)
+
+local selectedMerchant = nil
+
+createDropdown(contentFrame, "Select Merchant", function()
+    local options = {}
+    local eitem = workspace:FindFirstChild("EItem")
+    if eitem then
+        local count = 0
+        -- Scan direct children of EItem named "Merchant"
+        for _, v in ipairs(eitem:GetChildren()) do
+            if v.Name == "Merchant" then
+                count = count + 1
+                local displayName = "Merchant " .. count
+                local hrpPart = v:FindFirstChild("HumanoidRootPart") or v:FindFirstChildWhichIsA("BasePart")
+                if hrpPart then
+                    local pos = hrpPart.Position
+                    displayName = string.format("Merchant %d (%.0f, %.0f, %.0f)", count, pos.X, pos.Y, pos.Z)
+                end
+                table.insert(options, {
+                    Name = displayName,
+                    Value = v
+                })
+            end
+        end
+        
+        -- In case "Merchant" is a folder/container containing multiple models:
+        local merchantFolder = eitem:FindFirstChild("Merchant")
+        if merchantFolder and merchantFolder:IsA("Folder") then
+            for _, v in ipairs(merchantFolder:GetChildren()) do
+                count = count + 1
+                local displayName = v.Name
+                local hrpPart = v:FindFirstChild("HumanoidRootPart") or v:FindFirstChildWhichIsA("BasePart") or v
+                if hrpPart and hrpPart:IsA("BasePart") then
+                    local pos = hrpPart.Position
+                    displayName = string.format("%s (%.0f, %.0f, %.0f)", v.Name, pos.X, pos.Y, pos.Z)
+                else
+                    displayName = string.format("%s %d", v.Name, count)
+                end
+                table.insert(options, {
+                    Name = displayName,
+                    Value = v
+                })
+            end
+        end
+    end
+    return options
+end, function(val)
+    selectedMerchant = val
+end)
+
+createButton(contentFrame, "Teleport to Merchant", function()
+    if not selectedMerchant or not selectedMerchant.Parent then
+        notify("Teleport", "Pilih Merchant terlebih dahulu!", 3)
+        return
+    end
+    
+    local targetCF = nil
+    if selectedMerchant:IsA("Model") then
+        if selectedMerchant.PrimaryPart then
+            targetCF = selectedMerchant.PrimaryPart.CFrame
+        else
+            local part = selectedMerchant:FindFirstChildWhichIsA("BasePart")
+            if part then
+                targetCF = part.CFrame
+            end
+        end
+    elseif selectedMerchant:IsA("BasePart") then
+        targetCF = selectedMerchant.CFrame
+    end
+
+    if targetCF and hrp then
+        hrp.CFrame = targetCF * CFrame.new(0, 3, 0)
+        notify("Teleport", "Berhasil teleport ke " .. selectedMerchant.Name, 3)
+    else
+        notify("Teleport", "Gagal mendapatkan posisi Merchant!", 3)
+    end
+end)
+
 createButton(contentFrame, "Destroy GUI", function()
     IsRunning = false
     features.KillAura = false
     features.AutoFarm = false
     features.AutoPickup = false
+    features.InfiniteRange = false
     screenGui:Destroy()
 end)
 
@@ -584,23 +837,30 @@ task.spawn(function()
                     fireKillAuraEvent(currentTarget)
                 end
             else
-                local entities = Entity(killAuraRange)
-                local closest = nil
-                local shortest = math.huge
+                local currentRange = killAuraRange
+                if features.InfiniteRange then
+                    currentRange = math.huge
+                end
+                local entities = Entity(currentRange)
+                
+                -- Sort entities by distance to player (closest first)
+                table.sort(entities, function(a, b)
+                    local aHRP = a:FindFirstChild("HumanoidRootPart")
+                    local bHRP = b:FindFirstChild("HumanoidRootPart")
+                    if aHRP and bHRP then
+                        return (hrp.Position - aHRP.Position).Magnitude < (hrp.Position - bHRP.Position).Magnitude
+                    end
+                    return false
+                end)
+
+                -- Attack up to 10 closest entities
+                local attackCount = 0
                 for _, v in ipairs(entities) do
+                    if attackCount >= 10 then break end
                     local targetHRP = v:FindFirstChild("HumanoidRootPart")
                     if targetHRP then
-                        local dist = (hrp.Position - targetHRP.Position).Magnitude
-                        if dist < shortest then
-                            shortest = dist
-                            closest = v
-                        end
-                    end
-                end
-                if closest then
-                    local targetHRP = closest:FindFirstChild("HumanoidRootPart")
-                    if targetHRP then
-                        fireKillAuraEvent(closest)
+                        attackCount = attackCount + 1
+                        fireKillAuraEvent(v)
                     end
                 end
             end
