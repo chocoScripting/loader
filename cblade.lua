@@ -47,7 +47,7 @@ local features = {
     AutoFarm = false,
     AutoPickup = false
 }
-local farmOffset = CFrame.new(0, 0, -6.5) -- Jarak teleport AutoFarm (Di depan musuh, sekitar -6.5 agar tidak terkena hit tapi Kill Aura tetap cepat)
+local farmOffset = CFrame.new(0, 7, 0) -- Jarak teleport AutoFarm (Di atas musuh agar tidak terkena hit)
 local killAuraRange = 100 -- Jarak deteksi maksimal Kill Aura (Ubah angka ini jika ingin memperpendek/memperpanjang jarak serang)
 
 -- THEME CONFIGURATION (Crimson Red for Cursed Blade)
