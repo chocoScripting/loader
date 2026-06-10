@@ -805,7 +805,14 @@ local function fireKillAuraEvent(target)
     if not currentEvent or not target then return end
     local targetHRP = target:FindFirstChild("HumanoidRootPart")
     if not targetHRP then return end
+    
+    -- Option A: Serangan di antara player dan target (2 stud lebih dekat ke player) menghadap ke target
     local cf = targetHRP.CFrame
+    if hrp then
+        local diff = targetHRP.Position - hrp.Position
+        local direction = diff.Magnitude > 0.1 and diff.Unit or Vector3.new(0, 0, -1)
+        cf = CFrame.lookAt(targetHRP.Position - direction * 2, targetHRP.Position)
+    end
 
     if cachedArg1 then
         if cachedArg1 == 102 then
