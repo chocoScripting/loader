@@ -46,7 +46,8 @@ local features = {
     KillAura = false,
     AutoFarm = false,
     AutoPickup = false,
-    InfiniteRange = false
+    InfiniteRange = false,
+    Cover = false
 }
 local farmOffset = CFrame.new(0, 7, 0) -- Jarak teleport AutoFarm (Di atas musuh agar tidak terkena hit)
 local killAuraRange = 100 -- Jarak deteksi maksimal Kill Aura (Ubah angka ini jika ingin memperpendek/memperpanjang jarak serang)
@@ -152,8 +153,8 @@ end
 -- Main Frame (Draggable)
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 300, 0, 350)
-mainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
+mainFrame.Size = UDim2.new(0, 300, 0, 430)
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, -215)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 mainFrame.BackgroundTransparency = 0.05
 mainFrame.BorderSizePixel = 0
@@ -489,7 +490,7 @@ local function createDropdown(parent, placeholderText, scanCallback, selectCallb
                 local noItem = Instance.new("TextButton")
                 noItem.Size = UDim2.new(1, 0, 0, 28)
                 noItem.BackgroundTransparency = 1
-                noItem.Text = "No Merchants Found"
+                noItem.Text = placeholderText:lower():find("merchant") and "No Merchants Found" or "No Players Found"
                 noItem.TextColor3 = Color3.fromRGB(150, 150, 150)
                 noItem.Font = Enum.Font.GothamItalic
                 noItem.TextSize = 12
@@ -578,8 +579,13 @@ killAuraToggle = createToggle(contentFrame, "Kill Aura", false, function(value)
 end)
 
 local autoFarmToggle
+local coverToggle
+
 autoFarmToggle = createToggle(contentFrame, "Auto Farm", false, function(value)
     features.AutoFarm = value
+    if value and coverToggle then
+        coverToggle.Set(false)
+    end
     notify("Auto Farm", value and "Enabled" or "Disabled", 3)
 end)
 
@@ -593,6 +599,31 @@ local infiniteRangeToggle
 infiniteRangeToggle = createToggle(contentFrame, "Infinite Range", false, function(value)
     features.InfiniteRange = value
     notify("Infinite Range", value and "Enabled" or "Disabled", 3)
+end)
+
+local selectedPlayerName = nil
+
+coverToggle = createToggle(contentFrame, "Cover Player", false, function(value)
+    features.Cover = value
+    if value and autoFarmToggle then
+        autoFarmToggle.Set(false)
+    end
+    notify("Cover Player", value and "Enabled" or "Disabled", 3)
+end)
+
+local selectPlayerDropdown = createDropdown(contentFrame, "Select Player", function()
+    local options = {}
+    for _, p in ipairs(game.Players:GetPlayers()) do
+        if p ~= player then
+            table.insert(options, {
+                Name = p.DisplayName .. " (@" .. p.Name .. ")",
+                Value = p.Name
+            })
+        end
+    end
+    return options
+end, function(val)
+    selectedPlayerName = val
 end)
 
 local selectedMerchant = nil
@@ -678,6 +709,7 @@ createButton(contentFrame, "Destroy GUI", function()
     features.AutoFarm = false
     features.AutoPickup = false
     features.InfiniteRange = false
+    features.Cover = false
     screenGui:Destroy()
 end)
 
@@ -797,6 +829,25 @@ task.spawn(function()
 end)
 
 --================================================================
+-- COVER PLAYER
+--================================================================
+
+task.spawn(function()
+    while IsRunning do
+        task.wait()
+        if features.Cover and hrp and selectedPlayerName then
+            local targetPlayer = game.Players:FindFirstChild(selectedPlayerName)
+            if targetPlayer and targetPlayer.Character then
+                local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if targetHRP then
+                    hrp.CFrame = targetHRP.CFrame * farmOffset
+                end
+            end
+        end
+    end
+end)
+
+--================================================================
 -- KILL AURA EXECUTION
 --================================================================
 
@@ -901,4 +952,4 @@ end)
 
 print("✅ Angels - Cursed Blade LOADED!")
 print("🎮 Press G to toggle UI | Drag from title bar")
-print("⚔️ Kill Aura | 🚜 Auto Farm | 💰 Auto Pickup")
+print("⚔️ Kill Aura | 🚜 Auto Farm | 🛡️ Cover Player | 💰 Auto Pickup")
