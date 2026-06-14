@@ -526,55 +526,44 @@ end
 local connAdded = workspace.DescendantAdded:Connect(addTree)
 local connRemoving = workspace.DescendantRemoving:Connect(removeTree)
 
-local function collectFruit(tree)
-	local character = LocalPlayer.Character
-	local hrp = character and character:FindFirstChild("HumanoidRootPart")
-	if not hrp then return end
+local lastClicked = setmetatable({}, {__mode = "k"})
 
-	local fruitsToCollect = {}
+local activeHighlight = nil
+local activeStatusGui = nil
+
+local function removeActiveHighlight()
+	if activeHighlight then
+		pcall(function()
+			activeHighlight:Destroy()
+		end)
+		activeHighlight = nil
+	end
+	if activeStatusGui then
+		pcall(function()
+			activeStatusGui:Destroy()
+		end)
+		activeStatusGui = nil
+	end
+end
+
+local function getVisibleFruits(tree)
+	local fruits = {}
 	for _, obj in ipairs(tree:GetDescendants()) do
 		if obj:IsA("BasePart") and obj.Name == "Fruit" then
 			local clickPart = obj:FindFirstChild("ClickPart")
 			if clickPart then
 				local detector = clickPart:FindFirstChildOfClass("ClickDetector")
 				if detector then
-					table.insert(fruitsToCollect, detector)
+					table.insert(fruits, {
+						Part = obj,
+						ClickPart = clickPart,
+						Detector = detector
+					})
 				end
 			end
 		end
 	end
-
-	if #fruitsToCollect > 0 then
-		local originalCFrame = hrp.CFrame
-		local camera = workspace.CurrentCamera
-		local oldCameraType = camera.CameraType
-		local oldCameraCFrame = camera.CFrame
-
-		pcall(function()
-			-- Kunci kamera agar layar pemain tidak bergerak/jitter sama sekali
-			camera.CameraType = Enum.CameraType.Scriptable
-			camera.CFrame = oldCameraCFrame
-
-			-- Teleport karakter ke pohon
-			hrp.CFrame = tree:GetPivot() + Vector3.new(0, 5, 0)
-			task.wait(0.1)
-
-			-- Klik semua buah
-			for _, detector in ipairs(fruitsToCollect) do
-				if not IsRunning or not AutoFruit then break end
-				fireclickdetector(detector)
-			end
-
-			task.wait(0.05)
-			-- Kembalikan karakter ke posisi awal
-			hrp.CFrame = originalCFrame
-		end)
-
-		-- Kembalikan kontrol kamera ke semula
-		pcall(function()
-			camera.CameraType = oldCameraType
-		end)
-	end
+	return fruits
 end
 
 --// Loops
@@ -622,25 +611,153 @@ end)
 
 task.spawn(function()
 	while IsRunning do
-		task.wait(3)
+		task.wait(0.1)
 
 		if AutoFruit then
+			local character = LocalPlayer.Character
+			local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
-			for _, tree in ipairs(Trees) do
+			if hrp then
+				local playerPos = hrp.Position
 
-				if not AutoFruit or not IsRunning then
-					break
+				-- Salin dan urutkan pohon berdasarkan jarak terdekat ke player
+				local sortedTrees = {}
+				for _, tree in ipairs(Trees) do
+					if tree and tree.Parent then
+						table.insert(sortedTrees, tree)
+					end
 				end
 
-				if tree and tree.Parent then
+				table.sort(sortedTrees, function(a, b)
+					local distA = (a:GetPivot().Position - playerPos).Magnitude
+					local distB = (b:GetPivot().Position - playerPos).Magnitude
+					return distA < distB
+				end)
 
-					pcall(function()
-						collectFruit(tree)
-					end)
+				for _, tree in ipairs(sortedTrees) do
+					if not AutoFruit or not IsRunning then
+						break
+					end
+
+					if tree and tree.Parent then
+						local visibleFruits = getVisibleFruits(tree)
+
+						if #visibleFruits > 0 then
+							-- Simpan CFrame asli untuk dikembalikan nanti
+							local originalCFrame = hrp.CFrame
+
+							-- Tambahkan Highlight warna putih pada pohon yang sedang diklaim
+							removeActiveHighlight()
+							pcall(function()
+								activeHighlight = Instance.new("Highlight")
+								activeHighlight.FillColor = Color3.fromRGB(255, 255, 255)
+								activeHighlight.FillTransparency = 0.5
+								activeHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+								activeHighlight.OutlineTransparency = 0
+								activeHighlight.Parent = tree
+							end)
+
+							-- Tambahkan Status BillboardGui di atas pohon
+							local totalFruits = #visibleFruits
+							pcall(function()
+								activeStatusGui = Instance.new("BillboardGui")
+								activeStatusGui.Name = "FruitStatus"
+								activeStatusGui.Size = UDim2.new(0, 150, 0, 35)
+								activeStatusGui.StudsOffset = Vector3.new(0, 10, 0) -- 10 studs di atas pohon agar terlihat
+								activeStatusGui.AlwaysOnTop = true
+								activeStatusGui.Adornee = tree
+								activeStatusGui.Parent = tree
+
+								local bg = Instance.new("Frame")
+								bg.Size = UDim2.new(1, 0, 1, 0)
+								bg.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+								bg.BackgroundTransparency = 0.2
+								bg.BorderSizePixel = 0
+								bg.Parent = activeStatusGui
+
+								local corner = Instance.new("UICorner")
+								corner.CornerRadius = UDim.new(0, 6)
+								corner.Parent = bg
+
+								local stroke = Instance.new("UIStroke")
+								stroke.Color = Color3.fromRGB(253, 218, 13) -- Kuning lemon
+								stroke.Thickness = 1.5
+								stroke.Parent = bg
+
+								local label = Instance.new("TextLabel")
+								label.Size = UDim2.new(1, 0, 1, 0)
+								label.BackgroundTransparency = 1
+								label.Text = "Lemons: " .. totalFruits .. "/" .. totalFruits
+								label.TextColor3 = Color3.fromRGB(253, 218, 13)
+								label.Font = Enum.Font.GothamBold
+								label.TextSize = 14
+								label.Parent = bg
+							end)
+
+							-- Tetap stay di bawah pohon selama proses claim (agar di bawah tanah) dan berposisi horizontal (flat)
+							local claimingTree = true
+							local targetCFrame = tree:GetPivot() * CFrame.new(0, -20, 0) * CFrame.Angles(math.rad(90), 0, 0) -- 20 studs di bawah pohon + horizontal
+
+							task.spawn(function()
+								while claimingTree and AutoFruit and IsRunning and tree and tree.Parent do
+									pcall(function()
+										local char = LocalPlayer.Character
+										local currentHrp = char and char:FindFirstChild("HumanoidRootPart")
+										if currentHrp then
+											currentHrp.CFrame = targetCFrame
+											currentHrp.Velocity = Vector3.new(0, 0, 0)
+										end
+									end)
+									task.wait()
+								end
+							end)
+
+							task.wait(0.1) -- Jeda startup sebelum claim (sama dengan lemon.lua)
+
+							local startTime = tick()
+							-- Tetap fokus di pohon ini sampai semua ClickPart buahnya benar-benar hilang (max 5 detik biar ga stuck)
+							while #visibleFruits > 0 and AutoFruit and IsRunning and tree and tree.Parent and (tick() - startTime < 5) do
+								pcall(function()
+									for _, item in ipairs(visibleFruits) do
+										local detector = item.Detector
+										detector.MaxActivationDistance = 999999
+										fireclickdetector(detector)
+									end
+								end)
+
+								pcall(function()
+									if activeStatusGui and activeStatusGui:FindFirstChild("Frame") and activeStatusGui.Frame:FindFirstChild("TextLabel") then
+										activeStatusGui.Frame.TextLabel.Text = "Lemons: " .. #visibleFruits .. "/" .. totalFruits
+									end
+								end)
+
+								task.wait(0.05) -- Jeda setelah klik sebelum scan ulang (sama dengan lemon.lua)
+								visibleFruits = getVisibleFruits(tree)
+							end
+
+							claimingTree = false
+							task.wait(0.05) -- Jeda singkat agar loop teleportasi selesai
+
+							-- Kembalikan karakter ke posisi awal
+							pcall(function()
+								local char = LocalPlayer.Character
+								local currentHrp = char and char:FindFirstChild("HumanoidRootPart")
+								if currentHrp then
+									currentHrp.CFrame = originalCFrame
+								end
+							end)
+
+							-- Hapus highlight dan status billboard setelah pohon selesai dibersihkan
+							removeActiveHighlight()
+						end
+					end
 				end
 			end
+		else
+			removeActiveHighlight()
 		end
 	end
+	removeActiveHighlight()
 end)
 
 -- Clean connections when script is destroyed
@@ -650,4 +767,5 @@ task.spawn(function()
 	end
 	connAdded:Disconnect()
 	connRemoving:Disconnect()
+	removeActiveHighlight()
 end)
