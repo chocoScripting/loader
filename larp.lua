@@ -598,13 +598,28 @@ end)
 
 --// Auto Cash Loop
 task.spawn(function()
-	local cashRemote
 	while IsRunning do
-		task.wait(0.1)
+		task.wait(0.05)
 		if AutoCash then
 			pcall(function()
-				if not cashRemote then cashRemote = game:GetService("ReplicatedStorage"):WaitForChild("Cash") end
-				cashRemote:FireServer("Start")
+				local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+				local ui = playerGui and playerGui:FindFirstChild("UI")
+				local hud = ui and ui:FindFirstChild("Hud")
+				local centerBottom = hud and hud:FindFirstChild("CenterBottom")
+				local btn = centerBottom and centerBottom:FindFirstChild("ActivateButton")
+				if btn then
+					if firesignal then
+						firesignal(btn.MouseButton1Click)
+						firesignal(btn.Activated)
+					elseif getconnections then
+						for _, conn in ipairs(getconnections(btn.MouseButton1Click)) do
+							conn:Fire()
+						end
+						for _, conn in ipairs(getconnections(btn.Activated)) do
+							conn:Fire()
+						end
+					end
+				end
 			end)
 		end
 	end
