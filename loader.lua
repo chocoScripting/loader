@@ -1,15 +1,13 @@
 -- SERVICES
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 
 -- STATE CONTROLS
 local IsRunning = true
 local selectedScript = nil
-
--- THEME CONFIGURATION (Crimson Red matching Cursed Blade)
-local ThemeColor = Color3.fromRGB(255, 75, 75)
-local ThemeColorDark = Color3.fromRGB(200, 40, 40)
 
 -- Connection Tracker
 local connections = {}
@@ -31,11 +29,53 @@ local parentGui = (function()
 end)()
 
 --================================================================
+-- RAINBOW CONTROLLER SYSTEM
+--================================================================
+local rainbowGradients = {}
+
+local function makeRainbow(strokeOrGradient)
+	local gradient
+	if strokeOrGradient:IsA("UIStroke") then
+		gradient = Instance.new("UIGradient")
+		gradient.Parent = strokeOrGradient
+	elseif strokeOrGradient:IsA("UIGradient") then
+		gradient = strokeOrGradient
+	end
+	
+	if gradient then
+		gradient.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+			ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 255, 0)),
+			ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
+			ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0, 255, 255)),
+			ColorSequenceKeypoint.new(0.67, Color3.fromRGB(0, 0, 255)),
+			ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+		})
+		table.insert(rainbowGradients, gradient)
+	end
+	return gradient
+end
+
+local rotConnection = RunService.RenderStepped:Connect(function()
+	local rot = (tick() * 120) % 360
+	for i = #rainbowGradients, 1, -1 do
+		local g = rainbowGradients[i]
+		if g and g.Parent then
+			g.Rotation = rot
+		else
+			table.remove(rainbowGradients, i)
+		end
+	end
+end)
+table.insert(connections, rotConnection)
+
+--================================================================
 -- CREATE SCREEN GUI
 --================================================================
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AngelsLoaderUI"
+screenGui.Name = "ChocoLoaderUI"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = parentGui
@@ -69,21 +109,27 @@ local function notify(title, text, duration)
 	notifCorner.Parent = notifFrame
 
 	local notifStroke = Instance.new("UIStroke")
-	notifStroke.Color = ThemeColor
+	notifStroke.Color = Color3.fromRGB(255, 255, 255)
 	notifStroke.Thickness = 1.2
-	notifStroke.Transparency = 0.4
+	notifStroke.Transparency = 0.2
 	notifStroke.Parent = notifFrame
+	
+	makeRainbow(notifStroke)
 
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Size = UDim2.new(1, -20, 0, 20)
 	titleLabel.Position = UDim2.new(0, 10, 0, 5)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = title
-	titleLabel.TextColor3 = ThemeColor
+	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	titleLabel.Font = Enum.Font.GothamBold
 	titleLabel.TextSize = 12
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.Parent = notifFrame
+	
+	local titleGradient = Instance.new("UIGradient")
+	titleGradient.Parent = titleLabel
+	makeRainbow(titleGradient)
 
 	local descLabel = Instance.new("TextLabel")
 	descLabel.Size = UDim2.new(1, -20, 0, 25)
@@ -128,44 +174,40 @@ mainFrameCorner.CornerRadius = UDim.new(0, 12)
 mainFrameCorner.Parent = mainFrame
 
 local mainFrameStroke = Instance.new("UIStroke")
-mainFrameStroke.Color = ThemeColor
-mainFrameStroke.Thickness = 1.5
-mainFrameStroke.Transparency = 0.3
+mainFrameStroke.Thickness = 2
+mainFrameStroke.Transparency = 0.1
 mainFrameStroke.Parent = mainFrame
+makeRainbow(mainFrameStroke)
 
 -- Title Bar
 local titleBar = Instance.new("TextLabel")
 titleBar.Name = "TitleBar"
 titleBar.Size = UDim2.new(1, 0, 0, 38)
 titleBar.Position = UDim2.new(0, 0, 0, 0)
-titleBar.BackgroundColor3 = ThemeColor
-titleBar.TextColor3 = Color3.fromRGB(15, 15, 20)
-titleBar.Text = "🚀 Angels - Loader"
+titleBar.BackgroundTransparency = 1
+titleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleBar.Text = "🍫 Choco - Loader"
 titleBar.Font = Enum.Font.GothamBold
 titleBar.TextSize = 14
 titleBar.Active = true
 titleBar.Parent = mainFrame
 
-local titleBarCorner = Instance.new("UICorner")
-titleBarCorner.CornerRadius = UDim.new(0, 12)
-titleBarCorner.Parent = titleBar
+local titleTextGradient = Instance.new("UIGradient")
+titleTextGradient.Parent = titleBar
+makeRainbow(titleTextGradient)
 
-local titleGradient = Instance.new("UIGradient")
-titleGradient.Color = ColorSequence.new({
-	ColorSequenceKeypoint.new(0, ThemeColor),
-	ColorSequenceKeypoint.new(1, ThemeColorDark),
-})
-titleGradient.Rotation = 90
-titleGradient.Parent = titleBar
+-- Separator line under title bar
+local separator = Instance.new("Frame")
+separator.Name = "TitleSeparator"
+separator.Size = UDim2.new(1, 0, 0, 1)
+separator.Position = UDim2.new(0, 0, 1, 0)
+separator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+separator.BorderSizePixel = 0
+separator.Parent = titleBar
 
--- Overlay to cover the bottom rounded corners of the title bar
-local titleBarOverlay = Instance.new("Frame")
-titleBarOverlay.Name = "TitleBarOverlay"
-titleBarOverlay.Size = UDim2.new(1, 0, 0, 6)
-titleBarOverlay.Position = UDim2.new(0, 0, 1, -6)
-titleBarOverlay.BackgroundColor3 = ThemeColorDark
-titleBarOverlay.BorderSizePixel = 0
-titleBarOverlay.Parent = titleBar
+local separatorGradient = Instance.new("UIGradient")
+separatorGradient.Parent = separator
+makeRainbow(separatorGradient)
 
 -- Content Frame
 local contentFrame = Instance.new("Frame")
@@ -246,8 +288,8 @@ local function createButton(parent, text, callback)
 	button.Name = text .. "Button"
 	button.Size = UDim2.new(1, 0, 0, 30)
 	button.Position = UDim2.new(0, 0, 0.5, -15)
-	button.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-	button.TextColor3 = ThemeColor
+	button.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+	button.TextColor3 = Color3.fromRGB(230, 230, 230)
 	button.Text = text
 	button.Font = Enum.Font.GothamBold
 	button.TextSize = 13
@@ -259,20 +301,34 @@ local function createButton(parent, text, callback)
 	btnCorner.Parent = button
 
 	local btnStroke = Instance.new("UIStroke")
-	btnStroke.Color = Color3.fromRGB(80, 80, 90)
+	btnStroke.Color = Color3.fromRGB(60, 60, 75)
 	btnStroke.Thickness = 1
 	btnStroke.Parent = button
+
+	local hoverGradient = nil
 
 	safeConnect(button.MouseButton1Click, callback)
 
 	safeConnect(button.MouseEnter, function()
-		button.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
-		btnStroke.Color = ThemeColor
+		TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundColor3 = Color3.fromRGB(45, 45, 55),
+			TextColor3 = Color3.fromRGB(255, 255, 255)
+		}):Play()
+		if not hoverGradient then
+			hoverGradient = makeRainbow(btnStroke)
+		end
 	end)
 
 	safeConnect(button.MouseLeave, function()
-		button.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-		btnStroke.Color = Color3.fromRGB(80, 80, 90)
+		TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundColor3 = Color3.fromRGB(30, 30, 38),
+			TextColor3 = Color3.fromRGB(230, 230, 230)
+		}):Play()
+		if hoverGradient then
+			pcall(function() hoverGradient:Destroy() end)
+			hoverGradient = nil
+		end
+		btnStroke.Color = Color3.fromRGB(60, 60, 75)
 	end)
 
 	return btnFrame
@@ -282,7 +338,7 @@ end
 local function createDropdown(scriptList, overlayLabel, btnLabelPrefix)
 	local overlay = Instance.new("Frame")
 	overlay.Size = UDim2.new(1, 0, 1, -38)
-	overlay.Position = UDim2.new(0, 0, 0, 38)
+	overlay.Position = UDim2.new(0, 0, 1, 0)
 	overlay.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 	overlay.BorderSizePixel = 0
 	overlay.Visible = false
@@ -299,12 +355,16 @@ local function createDropdown(scriptList, overlayLabel, btnLabelPrefix)
 	otl.Position = UDim2.new(0, 15, 0, 5)
 	otl.BackgroundTransparency = 1
 	otl.Text = overlayLabel
-	otl.TextColor3 = ThemeColor
+	otl.TextColor3 = Color3.fromRGB(255, 255, 255)
 	otl.Font = Enum.Font.GothamBold
 	otl.TextSize = 13
 	otl.TextXAlignment = Enum.TextXAlignment.Left
 	otl.ZIndex = 11
 	otl.Parent = overlay
+
+	local otlGradient = Instance.new("UIGradient")
+	otlGradient.Parent = otl
+	makeRainbow(otlGradient)
 
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.Size = UDim2.new(0, 24, 0, 24)
@@ -316,10 +376,34 @@ local function createDropdown(scriptList, overlayLabel, btnLabelPrefix)
 	closeBtn.TextSize = 12
 	closeBtn.ZIndex = 11
 	closeBtn.Parent = overlay
+	
 	local cc = Instance.new("UICorner")
 	cc.CornerRadius = UDim.new(0, 6)
 	cc.Parent = closeBtn
-	safeConnect(closeBtn.MouseButton1Click, function() overlay.Visible = false end)
+
+	safeConnect(closeBtn.MouseEnter, function()
+		TweenService:Create(closeBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundColor3 = Color3.fromRGB(55, 55, 65),
+			TextColor3 = Color3.fromRGB(255, 80, 80)
+		}):Play()
+	end)
+	safeConnect(closeBtn.MouseLeave, function()
+		TweenService:Create(closeBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundColor3 = Color3.fromRGB(45, 45, 55),
+			TextColor3 = Color3.fromRGB(230, 230, 230)
+		}):Play()
+	end)
+
+	safeConnect(closeBtn.MouseButton1Click, function()
+		TweenService:Create(overlay, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Position = UDim2.new(0, 0, 1, 0)
+		}):Play()
+		task.delay(0.25, function()
+			if overlay.Position.Y.Scale == 1 then
+				overlay.Visible = false
+			end
+		end)
+	end)
 
 	-- Search row
 	local searchRow = Instance.new("Frame")
@@ -329,9 +413,11 @@ local function createDropdown(scriptList, overlayLabel, btnLabelPrefix)
 	searchRow.BorderSizePixel = 0
 	searchRow.ZIndex = 11
 	searchRow.Parent = overlay
+	
 	local src = Instance.new("UICorner")
 	src.CornerRadius = UDim.new(0, 8)
 	src.Parent = searchRow
+	
 	local srs = Instance.new("UIStroke")
 	srs.Color = Color3.fromRGB(60, 60, 75)
 	srs.Thickness = 1
@@ -363,8 +449,25 @@ local function createDropdown(scriptList, overlayLabel, btnLabelPrefix)
 	clearBtn.ZIndex = 13
 	clearBtn.Parent = searchRow
 
-	safeConnect(searchBox.Focused, function() srs.Color = ThemeColor end)
-	safeConnect(searchBox.FocusLost, function() srs.Color = Color3.fromRGB(60, 60, 75) end)
+	local searchHoverGradient = nil
+	safeConnect(searchBox.Focused, function()
+		TweenService:Create(searchRow, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+		}):Play()
+		if not searchHoverGradient then
+			searchHoverGradient = makeRainbow(srs)
+		end
+	end)
+	safeConnect(searchBox.FocusLost, function()
+		TweenService:Create(searchRow, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+		}):Play()
+		if searchHoverGradient then
+			pcall(function() searchHoverGradient:Destroy() end)
+			searchHoverGradient = nil
+		end
+		srs.Color = Color3.fromRGB(60, 60, 75)
+	end)
 
 	-- Scroll
 	local scroll = Instance.new("ScrollingFrame")
@@ -373,7 +476,7 @@ local function createDropdown(scriptList, overlayLabel, btnLabelPrefix)
 	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarThickness = 4
-	scroll.ScrollBarImageColor3 = ThemeColor
+	scroll.ScrollBarImageColor3 = Color3.fromRGB(150, 100, 220)
 	scroll.Active = true
 	scroll.ZIndex = 11
 	scroll.Parent = overlay
@@ -410,7 +513,7 @@ local function createDropdown(scriptList, overlayLabel, btnLabelPrefix)
 				local row = Instance.new("Frame")
 				row.LayoutOrder = i
 				row.Size = UDim2.new(1, -4, 0, 30)
-				row.BackgroundColor3 = isSelected and ThemeColor or Color3.fromRGB(45, 45, 55)
+				row.BackgroundColor3 = isSelected and Color3.fromRGB(45, 40, 55) or Color3.fromRGB(30, 30, 38)
 				row.BorderSizePixel = 0
 				row.ZIndex = 12
 				row.Parent = scroll
@@ -420,7 +523,7 @@ local function createDropdown(scriptList, overlayLabel, btnLabelPrefix)
 				rc.CornerRadius = UDim.new(0, 6)
 				rc.Parent = row
 				local rs = Instance.new("UIStroke")
-				rs.Color = isSelected and ThemeColor or Color3.fromRGB(70, 70, 80)
+				rs.Color = isSelected and Color3.fromRGB(160, 80, 255) or Color3.fromRGB(50, 50, 60)
 				rs.Thickness = 1
 				rs.Parent = row
 
@@ -428,17 +531,47 @@ local function createDropdown(scriptList, overlayLabel, btnLabelPrefix)
 				lbl.Size = UDim2.new(1, 0, 1, 0)
 				lbl.BackgroundTransparency = 1
 				lbl.Text = "  " .. name
-				lbl.TextColor3 = isSelected and Color3.fromRGB(15, 15, 20) or Color3.fromRGB(230, 230, 230)
+				lbl.TextColor3 = isSelected and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
 				lbl.Font = Enum.Font.GothamBold
 				lbl.TextSize = 11
 				lbl.TextXAlignment = Enum.TextXAlignment.Left
 				lbl.ZIndex = 13
 				lbl.Parent = row
 
+				local rowGradient = nil
+				if isSelected then
+					rowGradient = makeRainbow(rs)
+				end
+
+				safeConnect(lbl.MouseEnter, function()
+					if not isSelected then
+						TweenService:Create(row, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+							BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+						}):Play()
+						rs.Color = Color3.fromRGB(80, 80, 100)
+					end
+				end)
+
+				safeConnect(lbl.MouseLeave, function()
+					if not isSelected then
+						TweenService:Create(row, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+							BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+						}):Play()
+						rs.Color = Color3.fromRGB(50, 50, 60)
+					end
+				end)
+
 				safeConnect(lbl.MouseButton1Click, function()
 					selectedScript = scriptObj
 					updateBtn()
-					overlay.Visible = false
+					TweenService:Create(overlay, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+						Position = UDim2.new(0, 0, 1, 0)
+					}):Play()
+					task.delay(0.25, function()
+						if overlay.Position.Y.Scale == 1 then
+							overlay.Visible = false
+						end
+					end)
 				end)
 			end
 		end
@@ -457,7 +590,7 @@ local function createDropdown(scriptList, overlayLabel, btnLabelPrefix)
 		local dbtn = Instance.new("TextButton")
 		dbtn.Size = UDim2.new(1, 0, 0, 30)
 		dbtn.Position = UDim2.new(0, 0, 0.5, -15)
-		dbtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+		dbtn.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
 		dbtn.TextColor3 = Color3.fromRGB(230, 230, 230)
 		dbtn.Text = "Select Script"
 		dbtn.Font = Enum.Font.GothamBold
@@ -470,17 +603,42 @@ local function createDropdown(scriptList, overlayLabel, btnLabelPrefix)
 		bc.CornerRadius = UDim.new(0, 8)
 		bc.Parent = dbtn
 		local bs = Instance.new("UIStroke")
-		bs.Color = Color3.fromRGB(80, 80, 90)
+		bs.Color = Color3.fromRGB(60, 60, 75)
 		bs.Thickness = 1
 		bs.Parent = dbtn
 
+		local hoverGradient = nil
+
 		safeConnect(dbtn.MouseButton1Click, function()
-			overlay.Visible = true
 			buildRows(searchBox.Text)
+			overlay.Position = UDim2.new(0, 0, 1, 0)
+			overlay.Visible = true
+			TweenService:Create(overlay, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = UDim2.new(0, 0, 0, 38)
+			}):Play()
 		end)
 
-		safeConnect(dbtn.MouseEnter, function() bs.Color = ThemeColor end)
-		safeConnect(dbtn.MouseLeave, function() bs.Color = Color3.fromRGB(80, 80, 90) end)
+		safeConnect(dbtn.MouseEnter, function()
+			TweenService:Create(dbtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = Color3.fromRGB(45, 45, 55),
+				TextColor3 = Color3.fromRGB(255, 255, 255)
+			}):Play()
+			if not hoverGradient then
+				hoverGradient = makeRainbow(bs)
+			end
+		end)
+
+		safeConnect(dbtn.MouseLeave, function()
+			TweenService:Create(dbtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = Color3.fromRGB(30, 30, 38),
+				TextColor3 = Color3.fromRGB(230, 230, 230)
+			}):Play()
+			if hoverGradient then
+				pcall(function() hoverGradient:Destroy() end)
+				hoverGradient = nil
+			end
+			bs.Color = Color3.fromRGB(60, 60, 75)
+		end)
 
 		return row
 	end
@@ -539,6 +697,7 @@ createButton(contentFrame, "Destroy GUI", function()
 end)
 
 -- Initial loaded notification
-notify("Loaded", "Angels Loader successfully initialized!", 5)
-print("✅ Angels - Loader LOADED!")
+notify("Loaded", "Choco Loader successfully initialized!", 5)
+print("✅ Choco - Loader LOADED!")
 print("🎮 Press G to toggle UI | Drag from title bar")
+
