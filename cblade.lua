@@ -49,7 +49,7 @@ local features = {
     InfiniteRange = false,
     Cover = false,
     MerchantESP = false,
-    MerchantPath = false,
+    EntityESP = false,
     SellAll = false
 }
 local sellList = {}
@@ -60,6 +60,7 @@ local farmOffset = CFrame.new(0, 7, 0) -- Jarak teleport AutoFarm (Di atas musuh
 local killAuraRange = 100 -- Jarak deteksi maksimal Kill Aura (Ubah angka ini jika ingin memperpendek/memperpanjang jarak serang)
 local damageMultiplier = 1 -- Jumlah hit per serang (Damage Multiplier)
 local merchantHighlights = {} -- Store Highlight instances for merchants
+local entityHighlights = {} -- Store Highlight instances for entities
 
 -- THEME CONFIGURATION (Crimson Red for Cursed Blade)
 local ThemeColor = Color3.fromRGB(255, 75, 75)
@@ -247,11 +248,35 @@ toggleGrid.BackgroundTransparency = 1
 toggleGrid.LayoutOrder = 1
 toggleGrid.Parent = scrollFrame
 
-local gridLayout = Instance.new("UIGridLayout")
-gridLayout.CellSize = UDim2.new(0.5, -6, 0, 34)
-gridLayout.CellPadding = UDim2.new(0, 8, 0, 6)
-gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-gridLayout.Parent = toggleGrid
+local toggleGridLayout = Instance.new("UIListLayout")
+toggleGridLayout.FillDirection = Enum.FillDirection.Horizontal
+toggleGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+toggleGridLayout.Padding = UDim.new(0, 8)
+toggleGridLayout.Parent = toggleGrid
+
+local leftColumn = Instance.new("Frame")
+leftColumn.Name = "LeftColumn"
+leftColumn.Size = UDim2.new(0.5, -4, 0, 0)
+leftColumn.AutomaticSize = Enum.AutomaticSize.Y
+leftColumn.BackgroundTransparency = 1
+leftColumn.Parent = toggleGrid
+
+local leftLayout = Instance.new("UIListLayout")
+leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
+leftLayout.Padding = UDim.new(0, 6)
+leftLayout.Parent = leftColumn
+
+local rightColumn = Instance.new("Frame")
+rightColumn.Name = "RightColumn"
+rightColumn.Size = UDim2.new(0.5, -4, 0, 0)
+rightColumn.AutomaticSize = Enum.AutomaticSize.Y
+rightColumn.BackgroundTransparency = 1
+rightColumn.Parent = toggleGrid
+
+local rightLayout = Instance.new("UIListLayout")
+rightLayout.SortOrder = Enum.SortOrder.LayoutOrder
+rightLayout.Padding = UDim.new(0, 6)
+rightLayout.Parent = rightColumn
 
 -- Frame khusus untuk tombol & dropdown (full width, di bawah grid)
 local bottomSection = Instance.new("Frame")
@@ -266,9 +291,6 @@ local bottomLayout = Instance.new("UIListLayout")
 bottomLayout.SortOrder = Enum.SortOrder.LayoutOrder
 bottomLayout.Padding = UDim.new(0, 6)
 bottomLayout.Parent = bottomSection
-
-local leftColumn = toggleGrid
-local rightColumn = nil
 
 -- Draggable Functionality
 local function makeDraggable(dragPart, mainPart)
@@ -685,15 +707,40 @@ local function createDropdown(parent, placeholderText, scanCallback, selectCallb
     return dropdownFrame
 end
 
--- Build Controls - 2 KOLOM GRID untuk toggles
+-- Build Controls - LEFT COLUMN
 local killAuraToggle
-killAuraToggle = createToggle(toggleGrid, "Kill Aura", false, function(value)
+killAuraToggle = createToggle(leftColumn, "Kill Aura", false, function(value)
     features.KillAura = value
     notify("Kill Aura", value and "Enabled" or "Disabled", 3)
 end)
 
+local autoFarmToggle
+autoFarmToggle = createToggle(leftColumn, "Auto Farm", false, function(value)
+    features.AutoFarm = value
+    notify("Auto Farm", value and "Enabled" or "Disabled", 3)
+end)
+
+local infiniteRangeToggle
+infiniteRangeToggle = createToggle(leftColumn, "Infinite Range", false, function(value)
+    features.InfiniteRange = value
+    notify("Infinite Range", value and "Enabled" or "Disabled", 3)
+end)
+
+local autoPickupToggle
+autoPickupToggle = createToggle(leftColumn, "Auto Pickup", false, function(value)
+    features.AutoPickup = value
+    notify("Auto Pickup", value and "Enabled" or "Disabled", 3)
+end)
+
+local sellAllToggle
+sellAllToggle = createToggle(leftColumn, "Sell All", false, function(value)
+    features.SellAll = value
+    notify("Sell All", value and "Enabled" or "Disabled", 3)
+end)
+
+-- Build Controls - RIGHT COLUMN
 local merchantESPToggle
-merchantESPToggle = createToggle(toggleGrid, "Merchant ESP", false, function(value)
+merchantESPToggle = createToggle(rightColumn, "Merchant ESP", false, function(value)
     features.MerchantESP = value
     notify("Merchant ESP", value and "Enabled" or "Disabled", 3)
     if not value then
@@ -701,49 +748,42 @@ merchantESPToggle = createToggle(toggleGrid, "Merchant ESP", false, function(val
             pcall(function() highlight:Destroy() end)
         end
         merchantHighlights = {}
+        -- Cleanup billboards
+        local eitem = workspace:FindFirstChild("EItem")
+        if eitem then
+            for _, v in ipairs(eitem:GetDescendants()) do
+                if v.Name == "_MerchantBB" then
+                    pcall(function() v:Destroy() end)
+                end
+            end
+        end
     end
 end)
 
-local autoFarmToggle
-autoFarmToggle = createToggle(toggleGrid, "Auto Farm", false, function(value)
-    features.AutoFarm = value
-    notify("Auto Farm", value and "Enabled" or "Disabled", 3)
-end)
-
-local autoPickupToggle
-autoPickupToggle = createToggle(toggleGrid, "Auto Pickup", false, function(value)
-    features.AutoPickup = value
-    notify("Auto Pickup", value and "Enabled" or "Disabled", 3)
-end)
-
-local infiniteRangeToggle
-infiniteRangeToggle = createToggle(toggleGrid, "Infinite Range", false, function(value)
-    features.InfiniteRange = value
-    notify("Infinite Range", value and "Enabled" or "Disabled", 3)
-end)
-
 local coverToggle
-coverToggle = createToggle(toggleGrid, "Cover Player", false, function(value)
+coverToggle = createToggle(rightColumn, "Cover Player", false, function(value)
     features.Cover = value
     notify("Cover Player", value and "Enabled" or "Disabled", 3)
 end)
 
--- Fitur pathway ke merchant (toggle di grid)
-local merchantPathToggle
-merchantPathToggle = createToggle(toggleGrid, "Merchant Path", false, function(value)
-    features.MerchantPath = value
-    notify("Merchant Path", value and "Enabled" or "Disabled", 3)
+local entityESPToggle
+entityESPToggle = createToggle(rightColumn, "Entity ESP", false, function(value)
+    features.EntityESP = value
+    notify("Entity ESP", value and "Enabled" or "Disabled", 3)
     if not value then
-        -- Hapus semua part path saat dimatikan
-        local pathFolder = workspace:FindFirstChild("_MerchantPath")
-        if pathFolder then pathFolder:Destroy() end
+        for _, highlight in ipairs(entityHighlights) do
+            pcall(function() highlight:Destroy() end)
+        end
+        entityHighlights = {}
+        -- Cleanup billboards
+        if entityfolder then
+            for _, v in ipairs(entityfolder:GetDescendants()) do
+                if v.Name == "_EntityBB" then
+                    pcall(function() v:Destroy() end)
+                end
+            end
+        end
     end
-end)
-
-local sellAllToggle
-sellAllToggle = createToggle(toggleGrid, "Sell All", false, function(value)
-    features.SellAll = value
-    notify("Sell All", value and "Enabled" or "Disabled", 3)
 end)
 
 -- Bottom section: TextBox, Dropdown, Button (full width)
@@ -839,14 +879,34 @@ createButton(bottomSection, "Destroy GUI", function()
     features.InfiniteRange = false
     features.Cover = false
     features.MerchantESP = false
-    features.MerchantPath = false
+    features.EntityESP = false
     features.SellAll = false
     for _, highlight in ipairs(merchantHighlights) do
         pcall(function() highlight:Destroy() end)
     end
     merchantHighlights = {}
-    local pathFolder = workspace:FindFirstChild("_MerchantPath")
-    if pathFolder then pcall(function() pathFolder:Destroy() end) end
+    for _, highlight in ipairs(entityHighlights) do
+        pcall(function() highlight:Destroy() end)
+    end
+    entityHighlights = {}
+    
+    -- Cleanup billboards when UI is destroyed
+    local eitem = workspace:FindFirstChild("EItem")
+    if eitem then
+        for _, v in ipairs(eitem:GetDescendants()) do
+            if v.Name == "_MerchantBB" then
+                pcall(function() v:Destroy() end)
+            end
+        end
+    end
+    if entityfolder then
+        for _, v in ipairs(entityfolder:GetDescendants()) do
+            if v.Name == "_EntityBB" then
+                pcall(function() v:Destroy() end)
+            end
+        end
+    end
+
     screenGui:Destroy()
 end)
 
@@ -1046,85 +1106,148 @@ task.spawn(function()
 end)
 
 --================================================================
--- MERCHANT PATHWAY (Garis di ground)
+-- ENTITY ESP
 --================================================================
 
-local pathFolder = nil
-local pathParts = {}
+local function getOrCreateEntityBillboard(entity)
+    local headPart = entity:FindFirstChild("Head")
+        or entity:FindFirstChild("HumanoidRootPart")
+        or entity:FindFirstChildWhichIsA("BasePart")
+    if not headPart then return end
 
-local function clearPath()
-    for _, p in ipairs(pathParts) do
-        pcall(function() p:Destroy() end)
+    local bb = headPart:FindFirstChild("_EntityBB")
+    if not bb then
+        bb = Instance.new("BillboardGui")
+        bb.Name = "_EntityBB"
+        bb.Size = UDim2.new(0, 120, 0, 44)
+        bb.StudsOffset = Vector3.new(0, 3, 0)
+        bb.AlwaysOnTop = true
+        bb.ResetOnSpawn = false
+        bb.Parent = headPart
+
+        local bg = Instance.new("Frame")
+        bg.Name = "Frame"
+        bg.Size = UDim2.new(1, 0, 1, 0)
+        bg.BackgroundColor3 = Color3.fromRGB(15, 10, 10)
+        bg.BackgroundTransparency = 0.3
+        bg.BorderSizePixel = 0
+        bg.Parent = bb
+        local bgCorner = Instance.new("UICorner")
+        bgCorner.CornerRadius = UDim.new(0, 6)
+        bgCorner.Parent = bg
+        local bgStroke = Instance.new("UIStroke")
+        bgStroke.Color = ThemeColor
+        bgStroke.Thickness = 1.2
+        bgStroke.Parent = bg
+
+        local titleLbl = Instance.new("TextLabel")
+        titleLbl.Name = "Title"
+        titleLbl.Size = UDim2.new(1, -8, 0.5, 0)
+        titleLbl.Position = UDim2.new(0, 4, 0, 2)
+        titleLbl.BackgroundTransparency = 1
+        titleLbl.Text = "💀 " .. entity.Name
+        titleLbl.TextColor3 = ThemeColor
+        titleLbl.Font = Enum.Font.GothamBold
+        titleLbl.TextSize = 11
+        titleLbl.TextXAlignment = Enum.TextXAlignment.Center
+        titleLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        titleLbl.Parent = bg
+
+        local distLbl = Instance.new("TextLabel")
+        distLbl.Name = "Distance"
+        distLbl.Size = UDim2.new(1, -8, 0.5, -2)
+        distLbl.Position = UDim2.new(0, 4, 0.5, 0)
+        distLbl.BackgroundTransparency = 1
+        distLbl.Text = "... studs"
+        distLbl.TextColor3 = Color3.fromRGB(230, 230, 230)
+        distLbl.Font = Enum.Font.GothamMedium
+        distLbl.TextSize = 11
+        distLbl.TextXAlignment = Enum.TextXAlignment.Center
+        distLbl.Parent = bg
     end
-    pathParts = {}
+    return bb
 end
 
-local function createPathSegment(fromPos, toPos)
-    local mid = (fromPos + toPos) / 2
-    local dist = (toPos - fromPos).Magnitude
-    if dist < 0.5 then return end
-
-    local part = Instance.new("Part")
-    part.Name = "PathSegment"
-    part.Anchored = true
-    part.CanCollide = false
-    part.CanTouch = false
-    part.CastShadow = false
-    part.Size = Vector3.new(0.5, 0.15, dist)
-    part.CFrame = CFrame.lookAt(mid, toPos) * CFrame.new(0, 0, 0)
-    part.Material = Enum.Material.Neon
-    part.Color = Color3.fromRGB(255, 200, 0)
-    part.Transparency = 0.3
-    if pathFolder then
-        part.Parent = pathFolder
-    end
-    table.insert(pathParts, part)
+local function createEntityHighlight(model)
+    if not model:IsA("Model") then return nil end
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "EntityHighlight"
+    highlight.Adornee = model
+    highlight.FillColor = ThemeColor
+    highlight.OutlineColor = ThemeColorDark
+    highlight.FillTransparency = 0.4
+    highlight.OutlineTransparency = 0.2
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = model
+    return highlight
 end
 
 task.spawn(function()
     while IsRunning do
-        task.wait(1)
-        if features.MerchantPath and selectedMerchant and selectedMerchant.Parent and hrp then
-            -- Pastikan folder path ada
-            pathFolder = workspace:FindFirstChild("_MerchantPath")
-            if not pathFolder then
-                pathFolder = Instance.new("Folder")
-                pathFolder.Name = "_MerchantPath"
-                pathFolder.Parent = workspace
-            end
-
-            -- Dapatkan posisi merchant
-            local merchantPart = selectedMerchant:FindFirstChild("HumanoidRootPart")
-                or selectedMerchant:FindFirstChildWhichIsA("BasePart")
-            if merchantPart then
-                clearPath()
-                local startPos = hrp.Position
-                local endPos = merchantPart.Position
-                -- Turunkan Y ke ground (~0.1 di atas ground)
-                startPos = Vector3.new(startPos.X, startPos.Y - 3, startPos.Z)
-                endPos = Vector3.new(endPos.X, endPos.Y - 3, endPos.Z)
-
-                local totalDist = (endPos - startPos).Magnitude
-                local segmentLen = 4 -- panjang tiap segmen (studs)
-                local numSegments = math.floor(totalDist / segmentLen)
-
-                for i = 0, numSegments - 1 do
-                    local t0 = i / numSegments
-                    local t1 = (i + 1) / numSegments
-                    local p0 = startPos + (endPos - startPos) * t0
-                    local p1 = startPos + (endPos - startPos) * t1
-                    -- Selang-seling untuk efek garis putus-putus
-                    if i % 2 == 0 then
-                        createPathSegment(p0, p1)
+        task.wait(0.5)
+        if features.EntityESP then
+            local currentEntityFolder = workspace:FindFirstChild("Entity")
+            local entities = {}
+            if currentEntityFolder then
+                for _, v in ipairs(currentEntityFolder:GetChildren()) do
+                    if v:IsA("Model") then
+                        table.insert(entities, v)
                     end
                 end
             end
+            local activeEntityHighlights = {}
+
+            for _, entity in ipairs(entities) do
+                local existingHighlight = entity:FindFirstChild("EntityHighlight")
+                if existingHighlight then
+                    table.insert(activeEntityHighlights, existingHighlight)
+                else
+                    local newHighlight = createEntityHighlight(entity)
+                    if newHighlight then
+                        table.insert(activeEntityHighlights, newHighlight)
+                    end
+                end
+
+                -- Update billboard distance label
+                local bb = getOrCreateEntityBillboard(entity)
+                if bb and hrp and hrp.Parent then
+                    local headPart = bb.Parent
+                    if headPart and headPart:IsA("BasePart") then
+                        local dist = math.floor((hrp.Position - headPart.Position).Magnitude)
+                        local frame = bb:FindFirstChild("Frame")
+                        local distLbl = frame and frame:FindFirstChild("Distance")
+                        if distLbl then
+                            distLbl.Text = tostring(dist) .. " studs"
+                        end
+                    end
+                end
+            end
+
+            -- Remove stale highlights
+            for i = #entityHighlights, 1, -1 do
+                local hl = entityHighlights[i]
+                if not hl or not hl.Parent or not hl.Adornee or not hl.Adornee.Parent then
+                    pcall(function() if hl then hl:Destroy() end end)
+                    table.remove(entityHighlights, i)
+                end
+            end
+            entityHighlights = activeEntityHighlights
         else
-            -- Bersihkan path jika fitur mati atau merchant tidak dipilih
-            clearPath()
-            if pathFolder and not features.MerchantPath then
-                pcall(function() pathFolder:Destroy() end)
-                pathFolder = nil
+            -- Cleanup highlights
+            if #entityHighlights > 0 then
+                for _, hl in ipairs(entityHighlights) do
+                    pcall(function() if hl then hl:Destroy() end end)
+                end
+                entityHighlights = {}
+            end
+            -- Cleanup billboards
+            local currentEntityFolder = workspace:FindFirstChild("Entity")
+            if currentEntityFolder then
+                for _, v in ipairs(currentEntityFolder:GetDescendants()) do
+                    if v.Name == "_EntityBB" then
+                        pcall(function() v:Destroy() end)
+                    end
+                end
             end
         end
     end
