@@ -49,8 +49,13 @@ local features = {
     InfiniteRange = false,
     Cover = false,
     MerchantESP = false,
-    MerchantPath = false
+    MerchantPath = false,
+    SellAll = false
 }
+local sellList = {}
+for i = 1, 200 do
+    table.insert(sellList, i)
+end
 local farmOffset = CFrame.new(0, 7, 0) -- Jarak teleport AutoFarm (Di atas musuh agar tidak terkena hit)
 local killAuraRange = 100 -- Jarak deteksi maksimal Kill Aura (Ubah angka ini jika ingin memperpendek/memperpanjang jarak serang)
 local damageMultiplier = 1 -- Jumlah hit per serang (Damage Multiplier)
@@ -735,6 +740,12 @@ merchantPathToggle = createToggle(toggleGrid, "Merchant Path", false, function(v
     end
 end)
 
+local sellAllToggle
+sellAllToggle = createToggle(toggleGrid, "Sell All", false, function(value)
+    features.SellAll = value
+    notify("Sell All", value and "Enabled" or "Disabled", 3)
+end)
+
 -- Bottom section: TextBox, Dropdown, Button (full width)
 createTextBox(bottomSection, "Multiplier", "1-100", damageMultiplier, function(value)
     damageMultiplier = value
@@ -829,6 +840,7 @@ createButton(bottomSection, "Destroy GUI", function()
     features.Cover = false
     features.MerchantESP = false
     features.MerchantPath = false
+    features.SellAll = false
     for _, highlight in ipairs(merchantHighlights) do
         pcall(function() highlight:Destroy() end)
     end
@@ -1114,6 +1126,27 @@ task.spawn(function()
                 pcall(function() pathFolder:Destroy() end)
                 pathFolder = nil
             end
+        end
+    end
+end)
+
+--================================================================
+-- AUTO SELL
+--================================================================
+
+task.spawn(function()
+    while IsRunning do
+        if features.SellAll then
+            local args = {
+                539767613,
+                sellList
+            }
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("RemoteEvent"):FireServer(unpack(args))
+            end)
+            task.wait(5)
+        else
+            task.wait(1)
         end
     end
 end)
