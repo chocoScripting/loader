@@ -47,11 +47,14 @@ local features = {
     AutoFarm = false,
     AutoPickup = false,
     InfiniteRange = false,
-    Cover = false
+    Cover = false,
+    MerchantESP = false,
+    MerchantPath = false
 }
 local farmOffset = CFrame.new(0, 7, 0) -- Jarak teleport AutoFarm (Di atas musuh agar tidak terkena hit)
 local killAuraRange = 100 -- Jarak deteksi maksimal Kill Aura (Ubah angka ini jika ingin memperpendek/memperpanjang jarak serang)
-local damageMultiplier = 50 -- Jumlah hit per serang (Damage Multiplier)
+local damageMultiplier = 1 -- Jumlah hit per serang (Damage Multiplier)
+local merchantHighlights = {} -- Store Highlight instances for merchants
 
 -- THEME CONFIGURATION (Crimson Red for Cursed Blade)
 local ThemeColor = Color3.fromRGB(255, 75, 75)
@@ -154,8 +157,8 @@ end
 -- Main Frame (Draggable)
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 300, 0, 430)
-mainFrame.Position = UDim2.new(0.5, -150, 0.5, -215)
+mainFrame.Size = UDim2.new(0, 480, 0, 520)
+mainFrame.Position = UDim2.new(0.5, -240, 0.5, -260)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 mainFrame.BackgroundTransparency = 0.05
 mainFrame.BorderSizePixel = 0
@@ -205,25 +208,62 @@ titleBarOverlay.BackgroundColor3 = ThemeColorDark
 titleBarOverlay.BorderSizePixel = 0
 titleBarOverlay.Parent = titleBar
 
--- Content Frame
-local contentFrame = Instance.new("Frame")
-contentFrame.Name = "ContentFrame"
-contentFrame.Size = UDim2.new(1, 0, 1, -38)
-contentFrame.Position = UDim2.new(0, 0, 0, 38)
-contentFrame.BackgroundTransparency = 1
-contentFrame.Parent = mainFrame
+-- Scrolling Content Frame (menampung semua konten)
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Name = "ScrollFrame"
+scrollFrame.Size = UDim2.new(1, 0, 1, -38)
+scrollFrame.Position = UDim2.new(0, 0, 0, 38)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.BorderSizePixel = 0
+scrollFrame.ScrollBarThickness = 3
+scrollFrame.ScrollBarImageColor3 = ThemeColor
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+scrollFrame.Parent = mainFrame
 
-local listLayout = Instance.new("UIListLayout")
-listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-listLayout.Padding = UDim.new(0, 5)
-listLayout.Parent = contentFrame
+local scrollPadding = Instance.new("UIPadding")
+scrollPadding.PaddingTop = UDim.new(0, 12)
+scrollPadding.PaddingBottom = UDim.new(0, 12)
+scrollPadding.PaddingLeft = UDim.new(0, 12)
+scrollPadding.PaddingRight = UDim.new(0, 12)
+scrollPadding.Parent = scrollFrame
 
-local padding = Instance.new("UIPadding")
-padding.PaddingTop = UDim.new(0, 10)
-padding.PaddingBottom = UDim.new(0, 10)
-padding.PaddingLeft = UDim.new(0, 15)
-padding.PaddingRight = UDim.new(0, 15)
-padding.Parent = contentFrame
+local scrollLayout = Instance.new("UIListLayout")
+scrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
+scrollLayout.Padding = UDim.new(0, 8)
+scrollLayout.Parent = scrollFrame
+
+-- Toggle Grid Frame (2 kolom)
+local toggleGrid = Instance.new("Frame")
+toggleGrid.Name = "ToggleGrid"
+toggleGrid.Size = UDim2.new(1, 0, 0, 0)
+toggleGrid.AutomaticSize = Enum.AutomaticSize.Y
+toggleGrid.BackgroundTransparency = 1
+toggleGrid.LayoutOrder = 1
+toggleGrid.Parent = scrollFrame
+
+local gridLayout = Instance.new("UIGridLayout")
+gridLayout.CellSize = UDim2.new(0.5, -6, 0, 34)
+gridLayout.CellPadding = UDim2.new(0, 8, 0, 6)
+gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+gridLayout.Parent = toggleGrid
+
+-- Frame khusus untuk tombol & dropdown (full width, di bawah grid)
+local bottomSection = Instance.new("Frame")
+bottomSection.Name = "BottomSection"
+bottomSection.Size = UDim2.new(1, 0, 0, 0)
+bottomSection.AutomaticSize = Enum.AutomaticSize.Y
+bottomSection.BackgroundTransparency = 1
+bottomSection.LayoutOrder = 2
+bottomSection.Parent = scrollFrame
+
+local bottomLayout = Instance.new("UIListLayout")
+bottomLayout.SortOrder = Enum.SortOrder.LayoutOrder
+bottomLayout.Padding = UDim.new(0, 6)
+bottomLayout.Parent = bottomSection
+
+local leftColumn = toggleGrid
+local rightColumn = nil
 
 -- Draggable Functionality
 local function makeDraggable(dragPart, mainPart)
@@ -278,31 +318,44 @@ end)
 
 -- Component Helper Functions
 local function createToggle(parent, text, defaultValue, callback)
-    local row = Instance.new("Frame")
-    row.Name = text .. "Row"
-    row.Size = UDim2.new(1, 0, 0, 36)
-    row.BackgroundTransparency = 1
-    row.Parent = parent
+    -- Card style untuk grid cell
+    local card = Instance.new("Frame")
+    card.Name = text .. "Row"
+    card.Size = UDim2.new(1, 0, 0, 34)
+    card.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+    card.BorderSizePixel = 0
+    card.Parent = parent
+
+    local cardCorner = Instance.new("UICorner")
+    cardCorner.CornerRadius = UDim.new(0, 8)
+    cardCorner.Parent = card
+
+    local cardStroke = Instance.new("UIStroke")
+    cardStroke.Color = Color3.fromRGB(50, 50, 65)
+    cardStroke.Thickness = 1
+    cardStroke.Parent = card
 
     local label = Instance.new("TextLabel")
     label.Name = "Label"
-    label.Size = UDim2.new(0.7, 0, 1, 0)
+    label.Size = UDim2.new(1, -52, 1, 0)
+    label.Position = UDim2.new(0, 8, 0, 0)
     label.BackgroundTransparency = 1
     label.Text = text
-    label.TextColor3 = Color3.fromRGB(230, 230, 230)
+    label.TextColor3 = Color3.fromRGB(220, 220, 220)
     label.Font = Enum.Font.GothamMedium
-    label.TextSize = 13
+    label.TextSize = 12
     label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = row
+    label.TextTruncate = Enum.TextTruncate.AtEnd
+    label.Parent = card
 
     local switch = Instance.new("TextButton")
     switch.Name = "Switch"
-    switch.Size = UDim2.new(0, 42, 0, 20)
-    switch.Position = UDim2.new(1, -42, 0.5, -10)
+    switch.Size = UDim2.new(0, 36, 0, 18)
+    switch.Position = UDim2.new(1, -42, 0.5, -9)
     switch.BackgroundColor3 = defaultValue and ThemeColor or Color3.fromRGB(45, 45, 55)
     switch.Text = ""
     switch.AutoButtonColor = false
-    switch.Parent = row
+    switch.Parent = card
 
     local switchCorner = Instance.new("UICorner")
     switchCorner.CornerRadius = UDim.new(1, 0)
@@ -315,8 +368,8 @@ local function createToggle(parent, text, defaultValue, callback)
 
     local circle = Instance.new("Frame")
     circle.Name = "Circle"
-    circle.Size = UDim2.new(0, 14, 0, 14)
-    circle.Position = defaultValue and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
+    circle.Size = UDim2.new(0, 12, 0, 12)
+    circle.Position = defaultValue and UDim2.new(1, -15, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)
     circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     circle.BorderSizePixel = 0
     circle.Parent = switch
@@ -331,11 +384,13 @@ local function createToggle(parent, text, defaultValue, callback)
         if state then
             switch.BackgroundColor3 = ThemeColor
             switchStroke.Color = ThemeColor
-            circle:TweenPosition(UDim2.new(1, -17, 0.5, -7), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.15, true)
+            cardStroke.Color = ThemeColor
+            circle:TweenPosition(UDim2.new(1, -15, 0.5, -6), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.15, true)
         else
             switch.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
             switchStroke.Color = Color3.fromRGB(80, 80, 90)
-            circle:TweenPosition(UDim2.new(0, 3, 0.5, -7), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.15, true)
+            cardStroke.Color = Color3.fromRGB(50, 50, 65)
+            circle:TweenPosition(UDim2.new(0, 3, 0.5, -6), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.15, true)
         end
     end
 
@@ -356,14 +411,14 @@ local function createToggle(parent, text, defaultValue, callback)
         Get = function()
             return state
         end,
-        Frame = row
+        Frame = card
     }
 end
 
 local function createButton(parent, text, callback)
     local btnFrame = Instance.new("Frame")
     btnFrame.Name = text .. "Frame"
-    btnFrame.Size = UDim2.new(1, 0, 0, 40)
+    btnFrame.Size = UDim2.new(1, 0, 0, 36)
     btnFrame.BackgroundTransparency = 1
     btnFrame.Parent = parent
 
@@ -403,6 +458,59 @@ local function createButton(parent, text, callback)
     end)
 
     return btnFrame
+end
+
+local function createTextBox(parent, text, placeholderText, defaultValue, callback)
+    local row = Instance.new("Frame")
+    row.Name = text .. "Row"
+    row.Size = UDim2.new(1, 0, 0, 32)
+    row.BackgroundTransparency = 1
+    row.Parent = parent
+
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(0.6, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(230, 230, 230)
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 13
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = row
+
+    local textBox = Instance.new("TextBox")
+    textBox.Name = "TextBox"
+    textBox.Size = UDim2.new(0.35, 0, 0, 24)
+    textBox.Position = UDim2.new(0.65, 0, 0.5, -12)
+    textBox.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textBox.Text = tostring(defaultValue)
+    textBox.PlaceholderText = placeholderText
+    textBox.Font = Enum.Font.GothamMedium
+    textBox.TextSize = 12
+    textBox.ClearTextOnFocus = false
+    textBox.Parent = row
+
+    local textBoxCorner = Instance.new("UICorner")
+    textBoxCorner.CornerRadius = UDim.new(0, 6)
+    textBoxCorner.Parent = textBox
+
+    local textBoxStroke = Instance.new("UIStroke")
+    textBoxStroke.Color = Color3.fromRGB(80, 80, 90)
+    textBoxStroke.Thickness = 1
+    textBoxStroke.Parent = textBox
+
+    textBox.FocusLost:Connect(function(enterPressed)
+        local val = tonumber(textBox.Text)
+        if val then
+            callback(val)
+        else
+            textBox.Text = tostring(defaultValue)
+            callback(defaultValue)
+        end
+    end)
+
+    return row
 end
 
 local function createDropdown(parent, placeholderText, scanCallback, selectCallback)
@@ -572,47 +680,70 @@ local function createDropdown(parent, placeholderText, scanCallback, selectCallb
     return dropdownFrame
 end
 
--- Build Controls
+-- Build Controls - 2 KOLOM GRID untuk toggles
 local killAuraToggle
-killAuraToggle = createToggle(contentFrame, "Kill Aura", false, function(value)
+killAuraToggle = createToggle(toggleGrid, "Kill Aura", false, function(value)
     features.KillAura = value
     notify("Kill Aura", value and "Enabled" or "Disabled", 3)
 end)
 
-local autoFarmToggle
-local coverToggle
-
-autoFarmToggle = createToggle(contentFrame, "Auto Farm", false, function(value)
-    features.AutoFarm = value
-    if value and coverToggle then
-        coverToggle.Set(false)
+local merchantESPToggle
+merchantESPToggle = createToggle(toggleGrid, "Merchant ESP", false, function(value)
+    features.MerchantESP = value
+    notify("Merchant ESP", value and "Enabled" or "Disabled", 3)
+    if not value then
+        for _, highlight in ipairs(merchantHighlights) do
+            pcall(function() highlight:Destroy() end)
+        end
+        merchantHighlights = {}
     end
+end)
+
+local autoFarmToggle
+autoFarmToggle = createToggle(toggleGrid, "Auto Farm", false, function(value)
+    features.AutoFarm = value
     notify("Auto Farm", value and "Enabled" or "Disabled", 3)
 end)
 
 local autoPickupToggle
-autoPickupToggle = createToggle(contentFrame, "Auto Pickup", false, function(value)
+autoPickupToggle = createToggle(toggleGrid, "Auto Pickup", false, function(value)
     features.AutoPickup = value
     notify("Auto Pickup", value and "Enabled" or "Disabled", 3)
 end)
 
 local infiniteRangeToggle
-infiniteRangeToggle = createToggle(contentFrame, "Infinite Range", false, function(value)
+infiniteRangeToggle = createToggle(toggleGrid, "Infinite Range", false, function(value)
     features.InfiniteRange = value
     notify("Infinite Range", value and "Enabled" or "Disabled", 3)
 end)
 
-local selectedPlayerName = nil
-
-coverToggle = createToggle(contentFrame, "Cover Player", false, function(value)
+local coverToggle
+coverToggle = createToggle(toggleGrid, "Cover Player", false, function(value)
     features.Cover = value
-    if value and autoFarmToggle then
-        autoFarmToggle.Set(false)
-    end
     notify("Cover Player", value and "Enabled" or "Disabled", 3)
 end)
 
-local selectPlayerDropdown = createDropdown(contentFrame, "Select Player", function()
+-- Fitur pathway ke merchant (toggle di grid)
+local merchantPathToggle
+merchantPathToggle = createToggle(toggleGrid, "Merchant Path", false, function(value)
+    features.MerchantPath = value
+    notify("Merchant Path", value and "Enabled" or "Disabled", 3)
+    if not value then
+        -- Hapus semua part path saat dimatikan
+        local pathFolder = workspace:FindFirstChild("_MerchantPath")
+        if pathFolder then pathFolder:Destroy() end
+    end
+end)
+
+-- Bottom section: TextBox, Dropdown, Button (full width)
+createTextBox(bottomSection, "Multiplier", "1-100", damageMultiplier, function(value)
+    damageMultiplier = value
+    notify("Multiplier Set", "Damage multiplier set to " .. tostring(value), 2)
+end)
+
+local selectedPlayerName = nil
+
+local selectPlayerDropdown = createDropdown(bottomSection, "Select Player", function()
     local options = {}
     for _, p in ipairs(game.Players:GetPlayers()) do
         if p ~= player then
@@ -629,45 +760,34 @@ end)
 
 local selectedMerchant = nil
 
-createDropdown(contentFrame, "Select Merchant", function()
+createDropdown(bottomSection, "Select Merchant", function()
     local options = {}
     local eitem = workspace:FindFirstChild("EItem")
     if eitem then
         local count = 0
-        -- Scan direct children of EItem named "Merchant"
         for _, v in ipairs(eitem:GetChildren()) do
             if v.Name == "Merchant" then
                 count = count + 1
                 local displayName = "Merchant " .. count
                 local hrpPart = v:FindFirstChild("HumanoidRootPart") or v:FindFirstChildWhichIsA("BasePart")
-                if hrpPart then
-                    local pos = hrpPart.Position
-                    displayName = string.format("Merchant %d (%.0f, %.0f, %.0f)", count, pos.X, pos.Y, pos.Z)
+                if hrpPart and hrp then
+                    local dist = math.floor((hrp.Position - hrpPart.Position).Magnitude)
+                    displayName = string.format("Merchant %d [%d studs]", count, dist)
                 end
-                table.insert(options, {
-                    Name = displayName,
-                    Value = v
-                })
+                table.insert(options, { Name = displayName, Value = v })
             end
         end
-        
-        -- In case "Merchant" is a folder/container containing multiple models:
         local merchantFolder = eitem:FindFirstChild("Merchant")
         if merchantFolder and merchantFolder:IsA("Folder") then
             for _, v in ipairs(merchantFolder:GetChildren()) do
                 count = count + 1
-                local displayName = v.Name
                 local hrpPart = v:FindFirstChild("HumanoidRootPart") or v:FindFirstChildWhichIsA("BasePart") or v
-                if hrpPart and hrpPart:IsA("BasePart") then
-                    local pos = hrpPart.Position
-                    displayName = string.format("%s (%.0f, %.0f, %.0f)", v.Name, pos.X, pos.Y, pos.Z)
-                else
-                    displayName = string.format("%s %d", v.Name, count)
+                local displayName = v.Name
+                if hrpPart and hrpPart:IsA("BasePart") and hrp then
+                    local dist = math.floor((hrp.Position - hrpPart.Position).Magnitude)
+                    displayName = string.format("%s [%d studs]", v.Name, dist)
                 end
-                table.insert(options, {
-                    Name = displayName,
-                    Value = v
-                })
+                table.insert(options, { Name = displayName, Value = v })
             end
         end
     end
@@ -676,26 +796,22 @@ end, function(val)
     selectedMerchant = val
 end)
 
-createButton(contentFrame, "Teleport to Merchant", function()
+createButton(bottomSection, "Teleport to Merchant", function()
     if not selectedMerchant or not selectedMerchant.Parent then
         notify("Teleport", "Pilih Merchant terlebih dahulu!", 3)
         return
     end
-    
     local targetCF = nil
     if selectedMerchant:IsA("Model") then
         if selectedMerchant.PrimaryPart then
             targetCF = selectedMerchant.PrimaryPart.CFrame
         else
             local part = selectedMerchant:FindFirstChildWhichIsA("BasePart")
-            if part then
-                targetCF = part.CFrame
-            end
+            if part then targetCF = part.CFrame end
         end
     elseif selectedMerchant:IsA("BasePart") then
         targetCF = selectedMerchant.CFrame
     end
-
     if targetCF and hrp then
         hrp.CFrame = targetCF * CFrame.new(0, 3, 0)
         notify("Teleport", "Berhasil teleport ke " .. selectedMerchant.Name, 3)
@@ -704,13 +820,21 @@ createButton(contentFrame, "Teleport to Merchant", function()
     end
 end)
 
-createButton(contentFrame, "Destroy GUI", function()
+createButton(bottomSection, "Destroy GUI", function()
     IsRunning = false
     features.KillAura = false
     features.AutoFarm = false
     features.AutoPickup = false
     features.InfiniteRange = false
     features.Cover = false
+    features.MerchantESP = false
+    features.MerchantPath = false
+    for _, highlight in ipairs(merchantHighlights) do
+        pcall(function() highlight:Destroy() end)
+    end
+    merchantHighlights = {}
+    local pathFolder = workspace:FindFirstChild("_MerchantPath")
+    if pathFolder then pcall(function() pathFolder:Destroy() end) end
     screenGui:Destroy()
 end)
 
@@ -749,6 +873,249 @@ oldnamecall = hookmetamethod(game, "__namecall", function(self, ...)
         cachedArg1 = args[1]
     end
     return oldnamecall(self, ...)
+end)
+
+--================================================================
+-- MERCHANT ESP
+--================================================================
+
+local function getMerchants()
+    local merchants = {}
+    local eitem = workspace:FindFirstChild("EItem")
+    if eitem then
+        for _, v in ipairs(eitem:GetChildren()) do
+            if v.Name == "Merchant" and v:IsA("Model") then
+                table.insert(merchants, v)
+            end
+        end
+        local merchantFolder = eitem:FindFirstChild("Merchant")
+        if merchantFolder and merchantFolder:IsA("Folder") then
+            for _, v in ipairs(merchantFolder:GetChildren()) do
+                if v:IsA("Model") then
+                    table.insert(merchants, v)
+                end
+            end
+        end
+    end
+    return merchants
+end
+
+local function getOrCreateBillboard(merchant)
+    local headPart = merchant:FindFirstChild("Head")
+        or merchant:FindFirstChild("HumanoidRootPart")
+        or merchant:FindFirstChildWhichIsA("BasePart")
+    if not headPart then return end
+
+    local bb = headPart:FindFirstChild("_MerchantBB")
+    if not bb then
+        bb = Instance.new("BillboardGui")
+        bb.Name = "_MerchantBB"
+        bb.Size = UDim2.new(0, 120, 0, 44)
+        bb.StudsOffset = Vector3.new(0, 3, 0)
+        bb.AlwaysOnTop = true
+        bb.ResetOnSpawn = false
+        bb.Parent = headPart
+
+        local bg = Instance.new("Frame")
+        bg.Size = UDim2.new(1, 0, 1, 0)
+        bg.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+        bg.BackgroundTransparency = 0.3
+        bg.BorderSizePixel = 0
+        bg.Parent = bb
+        local bgCorner = Instance.new("UICorner")
+        bgCorner.CornerRadius = UDim.new(0, 6)
+        bgCorner.Parent = bg
+        local bgStroke = Instance.new("UIStroke")
+        bgStroke.Color = Color3.fromRGB(255, 215, 0)
+        bgStroke.Thickness = 1.2
+        bgStroke.Parent = bg
+
+        local titleLbl = Instance.new("TextLabel")
+        titleLbl.Name = "Title"
+        titleLbl.Size = UDim2.new(1, -8, 0.5, 0)
+        titleLbl.Position = UDim2.new(0, 4, 0, 2)
+        titleLbl.BackgroundTransparency = 1
+        titleLbl.Text = "🛒 Merchant"
+        titleLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+        titleLbl.Font = Enum.Font.GothamBold
+        titleLbl.TextSize = 13
+        titleLbl.TextXAlignment = Enum.TextXAlignment.Center
+        titleLbl.Parent = bg
+
+        local distLbl = Instance.new("TextLabel")
+        distLbl.Name = "Distance"
+        distLbl.Size = UDim2.new(1, -8, 0.5, -2)
+        distLbl.Position = UDim2.new(0, 4, 0.5, 0)
+        distLbl.BackgroundTransparency = 1
+        distLbl.Text = "... studs"
+        distLbl.TextColor3 = Color3.fromRGB(230, 230, 230)
+        distLbl.Font = Enum.Font.GothamMedium
+        distLbl.TextSize = 11
+        distLbl.TextXAlignment = Enum.TextXAlignment.Center
+        distLbl.Parent = bg
+    end
+    return bb
+end
+
+local function createHighlight(model)
+    if not model:IsA("Model") then return nil end
+    local highlight = Instance.new("Highlight")
+    highlight.Adornee = model
+    highlight.FillColor = Color3.fromRGB(255, 215, 0)
+    highlight.OutlineColor = Color3.fromRGB(255, 165, 0)
+    highlight.FillTransparency = 0.3
+    highlight.OutlineTransparency = 0.1
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = model
+    return highlight
+end
+
+-- Merchant ESP + Billboard label update loop
+task.spawn(function()
+    while IsRunning do
+        task.wait(0.5)
+        if features.MerchantESP then
+            local merchants = getMerchants()
+            local activeHighlights = {}
+
+            for _, merchant in ipairs(merchants) do
+                local existingHighlight = merchant:FindFirstChild("Highlight")
+                if existingHighlight then
+                    table.insert(activeHighlights, existingHighlight)
+                else
+                    local newHighlight = createHighlight(merchant)
+                    if newHighlight then
+                        table.insert(activeHighlights, newHighlight)
+                    end
+                end
+
+                -- Update billboard distance label
+                local bb = getOrCreateBillboard(merchant)
+                if bb and hrp then
+                    local headPart = bb.Parent
+                    if headPart and headPart:IsA("BasePart") then
+                        local dist = math.floor((hrp.Position - headPart.Position).Magnitude)
+                        local distLbl = bb:FindFirstChild("Frame") and bb.Frame:FindFirstChild("Distance")
+                        if distLbl then
+                            distLbl.Text = tostring(dist) .. " studs"
+                        end
+                    end
+                end
+            end
+
+            -- Remove stale highlights
+            for i = #merchantHighlights, 1, -1 do
+                local hl = merchantHighlights[i]
+                if not hl or not hl.Parent or not hl.Adornee or not hl.Adornee.Parent then
+                    pcall(function() if hl then hl:Destroy() end end)
+                    table.remove(merchantHighlights, i)
+                end
+            end
+            merchantHighlights = activeHighlights
+        else
+            -- Cleanup highlights
+            if #merchantHighlights > 0 then
+                for _, hl in ipairs(merchantHighlights) do
+                    pcall(function() if hl then hl:Destroy() end end)
+                end
+                merchantHighlights = {}
+            end
+            -- Cleanup billboards
+            local eitem = workspace:FindFirstChild("EItem")
+            if eitem then
+                for _, v in ipairs(eitem:GetDescendants()) do
+                    if v.Name == "_MerchantBB" then
+                        pcall(function() v:Destroy() end)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+--================================================================
+-- MERCHANT PATHWAY (Garis di ground)
+--================================================================
+
+local pathFolder = nil
+local pathParts = {}
+
+local function clearPath()
+    for _, p in ipairs(pathParts) do
+        pcall(function() p:Destroy() end)
+    end
+    pathParts = {}
+end
+
+local function createPathSegment(fromPos, toPos)
+    local mid = (fromPos + toPos) / 2
+    local dist = (toPos - fromPos).Magnitude
+    if dist < 0.5 then return end
+
+    local part = Instance.new("Part")
+    part.Name = "PathSegment"
+    part.Anchored = true
+    part.CanCollide = false
+    part.CanTouch = false
+    part.CastShadow = false
+    part.Size = Vector3.new(0.5, 0.15, dist)
+    part.CFrame = CFrame.lookAt(mid, toPos) * CFrame.new(0, 0, 0)
+    part.Material = Enum.Material.Neon
+    part.Color = Color3.fromRGB(255, 200, 0)
+    part.Transparency = 0.3
+    if pathFolder then
+        part.Parent = pathFolder
+    end
+    table.insert(pathParts, part)
+end
+
+task.spawn(function()
+    while IsRunning do
+        task.wait(1)
+        if features.MerchantPath and selectedMerchant and selectedMerchant.Parent and hrp then
+            -- Pastikan folder path ada
+            pathFolder = workspace:FindFirstChild("_MerchantPath")
+            if not pathFolder then
+                pathFolder = Instance.new("Folder")
+                pathFolder.Name = "_MerchantPath"
+                pathFolder.Parent = workspace
+            end
+
+            -- Dapatkan posisi merchant
+            local merchantPart = selectedMerchant:FindFirstChild("HumanoidRootPart")
+                or selectedMerchant:FindFirstChildWhichIsA("BasePart")
+            if merchantPart then
+                clearPath()
+                local startPos = hrp.Position
+                local endPos = merchantPart.Position
+                -- Turunkan Y ke ground (~0.1 di atas ground)
+                startPos = Vector3.new(startPos.X, startPos.Y - 3, startPos.Z)
+                endPos = Vector3.new(endPos.X, endPos.Y - 3, endPos.Z)
+
+                local totalDist = (endPos - startPos).Magnitude
+                local segmentLen = 4 -- panjang tiap segmen (studs)
+                local numSegments = math.floor(totalDist / segmentLen)
+
+                for i = 0, numSegments - 1 do
+                    local t0 = i / numSegments
+                    local t1 = (i + 1) / numSegments
+                    local p0 = startPos + (endPos - startPos) * t0
+                    local p1 = startPos + (endPos - startPos) * t1
+                    -- Selang-seling untuk efek garis putus-putus
+                    if i % 2 == 0 then
+                        createPathSegment(p0, p1)
+                    end
+                end
+            end
+        else
+            -- Bersihkan path jika fitur mati atau merchant tidak dipilih
+            clearPath()
+            if pathFolder and not features.MerchantPath then
+                pcall(function() pathFolder:Destroy() end)
+                pathFolder = nil
+            end
+        end
+    end
 end)
 
 --================================================================
