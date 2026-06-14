@@ -10,7 +10,7 @@ local hrp = char:WaitForChild("HumanoidRootPart")
 local entityfolder = workspace:FindFirstChild("Entity")
 local cachedArg1 = nil
 local currentTarget = nil
-local loot = workspace.FX
+local loot = workspace:FindFirstChild("FX")
 
 -- Dynamic Event Locator (Resolves issues where the Event changes on weapon swap/death)
 local function getEvent()
@@ -1126,14 +1126,18 @@ task.spawn(function()
     while IsRunning do
         task.wait()
         if features.AutoPickup and hrp then
-            for _, touch in ipairs(loot:GetDescendants()) do
-                if not IsRunning or not features.AutoPickup or not hrp then break end
-                if touch:IsA("TouchTransmitter") then
-                    local part = touch.Parent
-                    if part and part:IsA("BasePart") then
-                        firetouchinterest(hrp, part, 0)
-                        task.wait()
-                        firetouchinterest(hrp, part, 1)
+            local currentLoot = workspace:FindFirstChild("FX") or loot
+            if currentLoot then
+                for _, touch in ipairs(currentLoot:GetDescendants()) do
+                    if not IsRunning or not features.AutoPickup or not hrp then break end
+                    if touch:IsA("TouchTransmitter") then
+                        local part = touch.Parent
+                        if part and part:IsA("BasePart") and hrp and hrp.Parent then
+                            pcall(function()
+                                firetouchinterest(hrp, part, 0)
+                                firetouchinterest(hrp, part, 1)
+                            end)
+                        end
                     end
                 end
             end
