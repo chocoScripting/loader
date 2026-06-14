@@ -51,6 +51,7 @@ local features = {
 }
 local farmOffset = CFrame.new(0, 7, 0) -- Jarak teleport AutoFarm (Di atas musuh agar tidak terkena hit)
 local killAuraRange = 100 -- Jarak deteksi maksimal Kill Aura (Ubah angka ini jika ingin memperpendek/memperpanjang jarak serang)
+local damageMultiplier = 50 -- Jumlah hit per serang (Damage Multiplier)
 
 -- THEME CONFIGURATION (Crimson Red for Cursed Blade)
 local ThemeColor = Color3.fromRGB(255, 75, 75)
@@ -892,7 +893,9 @@ task.spawn(function()
                 local targetHum = currentTarget:FindFirstChild("Humanoid")
 
                 if targetHRP and targetHum and targetHum.Health > 0 then
-                    fireKillAuraEvent(currentTarget)
+                    for i = 1, damageMultiplier do
+                        fireKillAuraEvent(currentTarget)
+                    end
                 end
             else
                 local currentRange = killAuraRange
@@ -918,7 +921,9 @@ task.spawn(function()
                     local targetHRP = v:FindFirstChild("HumanoidRootPart")
                     if targetHRP then
                         attackCount = attackCount + 1
-                        fireKillAuraEvent(v)
+                        for i = 1, damageMultiplier do
+                            fireKillAuraEvent(v)
+                        end
                     end
                 end
             end
