@@ -1044,9 +1044,10 @@ end
 
 -- Merchant ESP + Billboard label update loop
 task.spawn(function()
+    local cleanedUp = true
     while IsRunning do
-        task.wait(0.5)
         if features.MerchantESP then
+            cleanedUp = false
             local merchants = getMerchants()
             local activeHighlights = {}
 
@@ -1084,23 +1085,28 @@ task.spawn(function()
                 end
             end
             merchantHighlights = activeHighlights
+            task.wait(0.5)
         else
-            -- Cleanup highlights
-            if #merchantHighlights > 0 then
-                for _, hl in ipairs(merchantHighlights) do
-                    pcall(function() if hl then hl:Destroy() end end)
+            if not cleanedUp then
+                cleanedUp = true
+                -- Cleanup highlights
+                if #merchantHighlights > 0 then
+                    for _, hl in ipairs(merchantHighlights) do
+                        pcall(function() if hl then hl:Destroy() end end)
+                    end
+                    merchantHighlights = {}
                 end
-                merchantHighlights = {}
-            end
-            -- Cleanup billboards
-            local eitem = workspace:FindFirstChild("EItem")
-            if eitem then
-                for _, v in ipairs(eitem:GetDescendants()) do
-                    if v.Name == "_MerchantBB" then
-                        pcall(function() v:Destroy() end)
+                -- Cleanup billboards
+                local eitem = workspace:FindFirstChild("EItem")
+                if eitem then
+                    for _, v in ipairs(eitem:GetDescendants()) do
+                        if v.Name == "_MerchantBB" then
+                            pcall(function() v:Destroy() end)
+                        end
                     end
                 end
             end
+            task.wait(0.2)
         end
     end
 end)
@@ -1183,9 +1189,10 @@ local function createEntityHighlight(model)
 end
 
 task.spawn(function()
+    local cleanedUp = true
     while IsRunning do
-        task.wait(0.5)
         if features.EntityESP then
+            cleanedUp = false
             local currentEntityFolder = workspace:FindFirstChild("Entity")
             local entities = {}
             if currentEntityFolder then
@@ -1232,23 +1239,28 @@ task.spawn(function()
                 end
             end
             entityHighlights = activeEntityHighlights
+            task.wait(0.5)
         else
-            -- Cleanup highlights
-            if #entityHighlights > 0 then
-                for _, hl in ipairs(entityHighlights) do
-                    pcall(function() if hl then hl:Destroy() end end)
+            if not cleanedUp then
+                cleanedUp = true
+                -- Cleanup highlights
+                if #entityHighlights > 0 then
+                    for _, hl in ipairs(entityHighlights) do
+                        pcall(function() if hl then hl:Destroy() end end)
+                    end
+                    entityHighlights = {}
                 end
-                entityHighlights = {}
-            end
-            -- Cleanup billboards
-            local currentEntityFolder = workspace:FindFirstChild("Entity")
-            if currentEntityFolder then
-                for _, v in ipairs(currentEntityFolder:GetDescendants()) do
-                    if v.Name == "_EntityBB" then
-                        pcall(function() v:Destroy() end)
+                -- Cleanup billboards
+                local currentEntityFolder = workspace:FindFirstChild("Entity")
+                if currentEntityFolder then
+                    for _, v in ipairs(currentEntityFolder:GetDescendants()) do
+                        if v.Name == "_EntityBB" then
+                            pcall(function() v:Destroy() end)
+                        end
                     end
                 end
             end
+            task.wait(0.2)
         end
     end
 end)
@@ -1280,7 +1292,6 @@ end)
 
 task.spawn(function()
     while IsRunning do
-        task.wait()
         if features.AutoPickup and hrp then
             local currentLoot = workspace:FindFirstChild("FX") or loot
             if currentLoot then
@@ -1297,6 +1308,9 @@ task.spawn(function()
                     end
                 end
             end
+            task.wait()
+        else
+            task.wait(0.2)
         end
     end
 end)
@@ -1307,7 +1321,6 @@ end)
 
 task.spawn(function()
     while IsRunning do
-        task.wait()
         if features.AutoFarm and hrp then
             if killAuraToggle then
                 killAuraToggle.Set(true)
@@ -1350,8 +1363,10 @@ task.spawn(function()
                     hrp.CFrame = targetHRP.CFrame * farmOffset
                 end
             end
+            task.wait()
         else
             currentTarget = nil
+            task.wait(0.2)
         end
     end
 end)
@@ -1362,7 +1377,6 @@ end)
 
 task.spawn(function()
     while IsRunning do
-        task.wait()
         if features.Cover and hrp and selectedPlayerName then
             local targetPlayer = game.Players:FindFirstChild(selectedPlayerName)
             if targetPlayer and targetPlayer.Character then
@@ -1371,6 +1385,9 @@ task.spawn(function()
                     hrp.CFrame = targetHRP.CFrame * farmOffset
                 end
             end
+            task.wait()
+        else
+            task.wait(0.2)
         end
     end
 end)
@@ -1413,7 +1430,6 @@ end
 
 task.spawn(function()
     while IsRunning do
-        task.wait(0.05)
         if features.KillAura and hrp then
             if currentTarget then
                 local targetHRP = currentTarget:FindFirstChild("HumanoidRootPart")
@@ -1454,6 +1470,9 @@ task.spawn(function()
                     end
                 end
             end
+            task.wait(0.05)
+        else
+            task.wait(0.2)
         end
     end
 end)
