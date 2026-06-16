@@ -159,6 +159,14 @@ local scriptList = {
 	[79268393072444] = { -- Sell Lemons
 		Name = "Sell Lemons",
 		Url = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/lemon.lua"
+	},
+	[11276071411] = { -- NPC or Die
+		Name = "NPC or Die",
+		Url = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/nod.lua"
+	},
+	[119048529960596] = { -- Restaurant Tycoon 3
+		Name = "Restaurant Tycoon 3",
+		Url = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/rt3.lua"
 	}
 }
 
