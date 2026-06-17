@@ -12,9 +12,9 @@ local AutoTrain = false
 local AutoHatch = false
 local AutoCraft = false
 local DisablePopups = false
-local kickMultiplier = 50
+local kickMultiplier = 1
 local trainMultiplier = 50
-local hatchMultiplier = 10
+local hatchMultiplier = 1
 local hatchEggName = "Festival Egg"
 
 --// Remotes Cache
