@@ -156,6 +156,10 @@ local scriptList = {
 		Name = "Cursed Blade",
 		Url = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/cblade.lua"
 	},
+	[76864623342260] = { -- Cursed Blade
+		Name = "Cursed Blade",
+		Url = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/cblade.lua"
+	},
 	[79268393072444] = { -- Sell Lemons
 		Name = "Sell Lemons",
 		Url = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/lemon.lua"
