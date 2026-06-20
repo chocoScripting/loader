@@ -834,8 +834,7 @@ local debugEnabled = false
 local playerDetectionEnabled = false
 local playerDetectionDistance = 30
 local perfectChance = 100
-local imperfectOffsetMin = 20
-local imperfectOffsetMax = 30
+local imperfectOffset = 25
 
 -- Runtime States
 local Window = nil
@@ -1058,11 +1057,9 @@ local function startAutoDigLoop()
 						if isPerfectHit then
 							currentBarOffset = 0
 						else
-							-- Shift the target by user-configured offset range (randomly left or right)
+							-- Shift the target by the fixed offset (randomly left or right)
 							local direction = (math.random(0, 1) == 0) and 1 or -1
-							local minOff = math.min(imperfectOffsetMin, imperfectOffsetMax)
-							local maxOff = math.max(imperfectOffsetMin, imperfectOffsetMax)
-							currentBarOffset = direction * math.random(minOff, maxOff)
+							currentBarOffset = direction * imperfectOffset
 						end
 						
 						if debugEnabled then
@@ -1451,21 +1448,12 @@ local function InitUI()
 		end
 	end)
 
-	-- Imperfect Offset Min (degrees)
-	mainPage:CreateTextBox("Imperfect Offset Min (°)", "Degrees...", 20, function(val)
+	-- Imperfect Offset (degrees)
+	mainPage:CreateTextBox("Imperfect Offset (°)", "Degrees...", 25, function(val)
 		local num = tonumber(val)
 		if num then
-			imperfectOffsetMin = math.max(1, math.round(num))
-			Window:Notify("Settings Update", "Imperfect Offset Min set to: " .. tostring(imperfectOffsetMin) .. "°", 2)
-		end
-	end)
-
-	-- Imperfect Offset Max (degrees)
-	mainPage:CreateTextBox("Imperfect Offset Max (°)", "Degrees...", 30, function(val)
-		local num = tonumber(val)
-		if num then
-			imperfectOffsetMax = math.max(1, math.round(num))
-			Window:Notify("Settings Update", "Imperfect Offset Max set to: " .. tostring(imperfectOffsetMax) .. "°", 2)
+			imperfectOffset = math.max(1, math.round(num))
+			Window:Notify("Settings Update", "Imperfect Offset set to: " .. tostring(imperfectOffset) .. "°", 2)
 		end
 	end)
 
