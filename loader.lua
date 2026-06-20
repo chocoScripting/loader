@@ -175,6 +175,10 @@ local scriptList = {
 	[15308782509] = { -- Football Training
 		Name = "Football Training",
 		Url = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/football.lua"
+	},
+	[111896378748580] = { -- Shells
+		Name = "Shells",
+		Url = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/shells.lua"
 	}
 }
 
