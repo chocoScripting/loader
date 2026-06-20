@@ -831,6 +831,9 @@ local clickMethod = "Virtual Click" -- default: Virtual Click (VIM)
 local clickCooldown = 0.1 -- default cooldown in seconds
 local pauseWhileChatting = true -- default: pause click simulation while typing
 local debugEnabled = false
+local playerDetectionEnabled = false
+local playerDetectionDistance = 30
+local perfectChance = 100
 
 -- Runtime States
 local Window = nil
@@ -840,6 +843,7 @@ local loopConnection = nil
 local childAddedConnection = nil
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 local notificationsMain = nil
+local autoFarmCtrl = nil
 
 task.spawn(function()
 	pcall(function()
@@ -961,6 +965,8 @@ local function startAutoDigLoop()
 	local lastClickTime = 0
 	local lastDigTriggerTime = 0
 	local qteEndedTime = 0
+	local isPerfectHit = true
+	local currentBarOffset = 0
 	
 	local lastLineRotation = nil
 	local lastRotationChangeTime = 0
@@ -1044,8 +1050,19 @@ local function startAutoDigLoop()
 					if activeBar ~= trackedBar then
 						trackedBar = activeBar
 						hasClickedThisBar = false
+						
+						-- Determine if this hit should be Perfect or Imperfect
+						isPerfectHit = (math.random(1, 100) <= perfectChance)
+						if isPerfectHit then
+							currentBarOffset = 0
+						else
+							-- Shift the target by 5 to 9 degrees (randomly left or right)
+							local direction = (math.random(0, 1) == 0) and 1 or -1
+							currentBarOffset = direction * math.random(20, 30)
+						end
+						
 						if debugEnabled then
-							print("[Auto Farm] Active bar changed/detected: " .. tostring(trackedBar.Name))
+							print(string.format("[Auto Farm] Active bar changed: %s | Perfect: %s | Offset: %d", tostring(trackedBar.Name), tostring(isPerfectHit), currentBarOffset))
 						end
 					end
 				else
@@ -1059,7 +1076,7 @@ local function startAutoDigLoop()
 		if trackedBar then
 			-- Rotation 0 of Line is vertical (12 o'clock), Rotation 0 of Bars is horizontal (3 o'clock).
 			-- Thus, their alignment offset is exactly 90 degrees.
-			local targetRot = (trackedBar.AbsoluteRotation + 90) % 360
+			local targetRot = (trackedBar.AbsoluteRotation + 90 + currentBarOffset) % 360
 			local currentRot = line.AbsoluteRotation
 			
 			-- If the bar position changes, reset the click flag for the new target
@@ -1341,6 +1358,38 @@ local function teleportBack()
 	end
 end
 
+-- Helper: Scan for nearby players and auto-disable farming if needed
+local function checkNearbyPlayers()
+	if not playerDetectionEnabled then return end
+	if not autoDigEnabled then return end
+	
+	local character = LocalPlayer.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			local char = player.Character
+			local pRoot = char and char:FindFirstChild("HumanoidRootPart")
+			if pRoot then
+				local dist = (root.Position - pRoot.Position).Magnitude
+				if dist <= playerDetectionDistance then
+					-- Player detected! Force toggle off Auto Farm
+					autoDigEnabled = false
+					stopAutoDigLoop()
+					if autoFarmCtrl then
+						autoFarmCtrl:SetState(false)
+					end
+					if Window then
+						Window:Notify("Security Alarm", string.format("Player '%s' detected within %.1f studs! Stopped farming.", player.DisplayName or player.Name, dist), 5)
+					end
+					break
+				end
+			end
+		end
+	end
+end
+
 -- Initialize GUI Window and Tabs
 local function InitUI()
 	Window = Library.new("🐚 SHELLS AUTO FARM")
@@ -1352,7 +1401,7 @@ local function InitUI()
 	local settingsPage = Window:CreatePage("Settings")
 
 	-- 2. "Auto Farm" Page Elements
-	mainPage:CreateToggle("Auto Farm", false, function(state)
+	local _, farmCtrl = mainPage:CreateToggle("Auto Farm", false, function(state)
 		autoDigEnabled = state
 		if state then
 			-- Immediately perform a click to trigger/start digging
@@ -1371,6 +1420,7 @@ local function InitUI()
 			Window:Notify("Disabled", "Auto Farm is now INACTIVE.", 2)
 		end
 	end)
+	autoFarmCtrl = farmCtrl
 
 	-- Click Method Dropdown
 	mainPage:CreateDropdown("Click Method", "Virtual Click", function()
@@ -1387,6 +1437,29 @@ local function InitUI()
 	-- Inventory Storage Label
 	local _, invCtrl = mainPage:CreateLabel("Inventory Storage", "Storage: N/A")
 	inventoryLabelCtrl = invCtrl
+
+	-- Perfect Click Chance textbox
+	mainPage:CreateTextBox("Perfect Click Chance (%)", "0 to 100...", 100, function(val)
+		local num = tonumber(val)
+		if num then
+			perfectChance = math.clamp(math.round(num), 0, 100)
+			Window:Notify("Settings Update", "Perfect Chance set to: " .. tostring(perfectChance) .. "%", 2)
+		end
+	end)
+
+	-- Player Detection Toggle & Distance Config
+	mainPage:CreateToggle("Player Detection", false, function(state)
+		playerDetectionEnabled = state
+		Window:Notify("Settings Update", "Player Detection: " .. tostring(state), 2)
+	end)
+
+	mainPage:CreateTextBox("Detection Distance (Studs)", "Distance...", 30, function(val)
+		local num = tonumber(val)
+		if num then
+			playerDetectionDistance = num
+			Window:Notify("Settings Update", "Detection Distance set to: " .. tostring(num) .. " studs", 2)
+		end
+	end)
 
 	-- 3. "Teleport" Page Elements
 	teleportPage:CreateButton("Teleport to Closest Merchant", function()
@@ -1446,6 +1519,19 @@ local function InitUI()
 				else
 					inventoryLabelCtrl:SetText("N/A")
 				end
+			end
+		end
+	end)
+
+	-- Start background task to detect nearby players
+	task.spawn(function()
+		while true do
+			task.wait(0.2)
+			if not Window or not Window.ScreenGui or not Window.ScreenGui.Parent then
+				break
+			end
+			if playerDetectionEnabled and autoDigEnabled then
+				pcall(checkNearbyPlayers)
 			end
 		end
 	end)
