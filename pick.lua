@@ -1,4 +1,4 @@
-local GUI_LIBRARY_URL = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/GUI.lua"
+local GUI_LIBRARY_URL = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/GUI.lua?t=" .. tostring(tick())
 local Library = loadstring(game:HttpGet(GUI_LIBRARY_URL))()
 
 --// Services
@@ -54,6 +54,36 @@ local function fireTouch(part)
 			end
 		end
 	end)
+end
+
+--// Dropdown Scan Helpers
+local function getPlotsList()
+	local list = {}
+	local plots = workspace:FindFirstChild("Plots")
+	if plots then
+		for _, plot in ipairs(plots:GetChildren()) do
+			if plot:IsA("Model") or plot:IsA("Folder") then
+				table.insert(list, plot.Name)
+			end
+		end
+	end
+	if #list == 0 then
+		table.insert(list, SelectedPlot)
+	end
+	return list
+end
+
+local function getButtonsList()
+	local list = {}
+	local plots = workspace:FindFirstChild("Plots")
+	local plot = plots and plots:FindFirstChild(SelectedPlot)
+	local buttons = plot and plot:FindFirstChild("Buttons")
+	if buttons then
+		for _, btn in ipairs(buttons:GetChildren()) do
+			table.insert(list, btn.Name)
+		end
+	end
+	return list
 end
 
 --// INITIALIZE GUI WINDOW & PAGES
