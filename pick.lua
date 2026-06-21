@@ -190,7 +190,7 @@ task.spawn(function()
 	end
 end)
 
--- 2. Auto Buy Button Loop (0.5s delay)
+-- 2. Auto Buy Button Loop (0.05s delay)
 task.spawn(function()
 	while IsRunning do
 		if AutoBuy and SelectedPlot and SelectedButton then
@@ -205,7 +205,7 @@ task.spawn(function()
 				end
 			end)
 		end
-		task.wait(0.5)
+		task.wait(0.05)
 	end
 end)
 
