@@ -15,6 +15,8 @@ local AutoTrain = false
 local AutoHatch = false
 local AutoCraft = false
 local DisablePopups = false
+local GiftboxExploit = false
+local AdminChest = false
 local kickMultiplier = 1
 local trainMultiplier = 50
 local hatchMultiplier = 1
@@ -28,6 +30,9 @@ local StopTrainEvent = nil
 local ClaimPassEvent = nil
 local HatchEggEvent = nil
 local CraftEvent = nil
+local ClaimGiftEvent = nil
+local AdminChestEvent = nil
+
 --// ProximityPrompt Helpers
 local function findTrainingPrompt()
 	local GameItems = workspace:FindFirstChild("GameItems")
@@ -132,8 +137,26 @@ local function getRemotes()
 				CraftEvent = RE:FindFirstChild("Craft") or RE:WaitForChild("Craft", 2)
 			end
 		end
+
+		-- AdminPanel Service Remotes (Giftbox Exploit)
+		local AdminPanelService = Services:FindFirstChild("AdminPanelService") or Services:WaitForChild("AdminPanelService", 2)
+		if AdminPanelService then
+			local RE = AdminPanelService:FindFirstChild("RE") or AdminPanelService:WaitForChild("RE", 2)
+			if RE then
+				ClaimGiftEvent = RE:FindFirstChild("ClaimGift") or RE:FindFirstChild("ClaimGift", 2)
+			end
+		end
+
+		-- AdminChest Service Remotes (Admin Chest)
+		local AdminChestService = Services:FindFirstChild("AdminChestService") or Services:WaitForChild("AdminChestService", 2)
+		if AdminChestService then
+			local RE = AdminChestService:FindFirstChild("RE") or AdminChestService:WaitForChild("RE", 2)
+			if RE then
+				AdminChestEvent = RE:FindFirstChild("Claim") or RE:FindFirstChild("Claim", 2)
+			end
+		end
 	end)
-	return ThrowEvent ~= nil and FinishEvent ~= nil, TrainEvent ~= nil, ClaimPassEvent ~= nil, HatchEggEvent ~= nil, CraftEvent ~= nil, StopTrainEvent ~= nil
+	return ThrowEvent ~= nil and FinishEvent ~= nil, TrainEvent ~= nil, ClaimPassEvent ~= nil, HatchEggEvent ~= nil, CraftEvent ~= nil, StopTrainEvent ~= nil, ClaimGiftEvent ~= nil, AdminChestEvent ~= nil
 end
 
 -- Initialize Window
@@ -214,13 +237,33 @@ end)
 miscPage:CreateToggle("Disable Popups", false, function(value)
 	DisablePopups = value
 	notify("Disable Popups", value and "Enabled" or "Disabled", 3)
-	
+
 	pcall(function()
 		local popups = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("PopUps")
 		if popups then
 			popups.Enabled = not value
 		end
 	end)
+
+	pcall(function()
+		local prompts = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui"):FindFirstChild("Prompts")
+		if prompts then
+			local window = prompts:FindFirstChild("Window")
+			if window then
+				window.Visible = not value
+			end
+		end
+	end)
+end)
+
+miscPage:CreateToggle("Giftbox Exploit", false, function(value)
+	GiftboxExploit = value
+	notify("Giftbox Exploit", value and "Enabled" or "Disabled", 3)
+end)
+
+miscPage:CreateToggle("Admin Chest", false, function(value)
+	AdminChest = value
+	notify("Admin Chest", value and "Enabled" or "Disabled", 3)
 end)
 
 miscPage:CreateButton("Claim Season Pass", function()
@@ -266,6 +309,8 @@ miscPage:CreateButton("Destroy GUI", function()
 	AutoHatch = false
 	AutoCraft = false
 	DisablePopups = false
+	GiftboxExploit = false
+	AdminChest = false
 	
 	-- Stop training if UI is destroyed
 	if StopTrainEvent then
@@ -440,6 +485,45 @@ task.spawn(function()
 					popups.Enabled = false
 				end
 			end)
+		end
+	end
+end)
+
+-- Loop for Giftbox Exploit
+task.spawn(function()
+	local args = {
+		"d7cf2ce8-fb5c-48f0-ab8c-568a0885b2cd"
+	}
+	while IsRunning do
+		task.wait(0.0001)
+		if GiftboxExploit then
+			if ClaimGiftEvent then
+				for i = 1, 10 do
+					pcall(function()
+						ClaimGiftEvent:FireServer(unpack(args))
+					end)
+				end
+			else
+				getRemotes()
+				task.wait(1)
+			end
+		end
+	end
+end)
+
+-- Loop for Admin Chest
+task.spawn(function()
+	while IsRunning do
+		task.wait(0.0001)
+		if AdminChest then
+			if AdminChestEvent then
+				pcall(function()
+					AdminChestEvent:FireServer()
+				end)
+			else
+				getRemotes()
+				task.wait(1)
+			end
 		end
 	end
 end)
