@@ -1,4 +1,4 @@
-local GUI_LIBRARY_URL = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/GUI.lua"
+local GUI_LIBRARY_URL = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/GUI.lua?t=" .. tostring(tick())
 local Library = loadstring(game:HttpGet(GUI_LIBRARY_URL))()
 
 -- PLAYER & GUI SERVICES
