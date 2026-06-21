@@ -738,11 +738,14 @@ function Page:CreateDropdown(text, placeholderText, scanCallback, selectCallback
 				noItem.Parent = listContainer
 			else
 				for _, option in ipairs(options) do
+					local optLabel = type(option) == "table" and (option.Name or option.Value or tostring(option)) or tostring(option)
+					local optValue = type(option) == "table" and (option.Value or option.Name or tostring(option)) or option
+
 					local optBtn = Instance.new("TextButton")
 					optBtn.Size = UDim2.new(1, 0, 0, 24)
 					optBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 					optBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
-					optBtn.Text = option.Name
+					optBtn.Text = optLabel
 					optBtn.Font = Enum.Font.GothamMedium
 					optBtn.TextSize = 11
 					optBtn.ZIndex = 12
@@ -753,7 +756,7 @@ function Page:CreateDropdown(text, placeholderText, scanCallback, selectCallback
 					optCorner.Parent = optBtn
 
 					optBtn.MouseButton1Click:Connect(function()
-						button.Text = option.Name .. "  ▼"
+						button.Text = optLabel .. "  ▼"
 						isOpen = false
 						if pageScroll then
 							pageScroll.ClipsDescendants = true
@@ -763,7 +766,7 @@ function Page:CreateDropdown(text, placeholderText, scanCallback, selectCallback
 						listContainer.ZIndex = 1
 						listContainer.Visible = false
 						btnStroke.Color = Color3.fromRGB(50, 50, 50)
-						selectCallback(option.Value)
+						selectCallback(optValue)
 					end)
 
 					optBtn.MouseEnter:Connect(function()
