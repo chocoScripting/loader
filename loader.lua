@@ -181,8 +181,12 @@ local scriptList = {
 		Url = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/shells.lua"
 	},
 	[73814003954154] = { -- Pickaxe Tycoon
-		Name = "Shells",
+		Name = "Pickaxe Tycoon",
 		Url = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/pick.lua"
+	},
+	[97387256206808] = { -- Broken Blade
+		Name = "Broken Blade",
+		Url = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/brokenblade.lua"
 	}
 }
 
