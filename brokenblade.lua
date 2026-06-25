@@ -21,7 +21,10 @@ end)
 local IsRunning             = true
 local killAuraEnabled       = false
 local damageMultiplier      = 1
-local currentPayload        = nil  -- active buffer, nil = not set yet
+local payload1              = nil
+local payload2              = nil
+local payload3              = nil
+local lastFired             = 1
 local autoChomusukeEnabled  = false
 local chomusukeToggleCtrl   = nil  -- reference to toggle controller for auto-off
 
@@ -62,11 +65,24 @@ end
 --================================================================
 
 local function fireKillAura()
-    if not currentPayload then return end
     local remoteEvent = ReplicatedStorage:FindFirstChild("Remote_Event")
     if not remoteEvent then return end
+
+    -- Build list of active payloads
+    local active = {}
+    if payload1 then active[#active+1] = payload1 end
+    if payload2 then active[#active+1] = payload2 end
+    if payload3 then active[#active+1] = payload3 end
+
+    if #active == 0 then return end
+
+    -- Round-robin through available payloads
+    if lastFired >= #active then lastFired = 1 else lastFired = lastFired + 1 end
+    local targetPayload = active[lastFired]
+
+    if not targetPayload then return end
     pcall(function()
-        remoteEvent:FireServer(currentPayload)
+        remoteEvent:FireServer(targetPayload)
     end)
 end
 
@@ -87,8 +103,8 @@ end
 -- COMBAT PAGE --------------------------------------------------
 
 combatPage:CreateToggle("Kill Aura", false, function(value)
-    if value and not currentPayload then
-        notify("Kill Aura", "Set a payload in the Payload tab first!", 4)
+    if value and not payload1 and not payload2 then
+        notify("Kill Aura", "Set at least one payload first!", 4)
         killAuraEnabled = false
         return
     end
@@ -103,6 +119,19 @@ end)
 
 local _, payloadStatus = combatPage:CreateLabel("Status", "Payload not set")
 
+local function updatePayloadStatus()
+    if not payloadStatus then return end
+    local parts = {}
+    if payload1 then parts[#parts+1] = "P1(" .. tostring(buffer.len(payload1)) .. "B)" end
+    if payload2 then parts[#parts+1] = "P2(" .. tostring(buffer.len(payload2)) .. "B)" end
+    if payload3 then parts[#parts+1] = "P3(" .. tostring(buffer.len(payload3)) .. "B)" end
+    if #parts > 0 then
+        payloadStatus:SetText(table.concat(parts, " | ") .. " active")
+    else
+        payloadStatus:SetText("Payload not set")
+    end
+end
+
 local _, chomusukeCtrl = combatPage:CreateToggle("Auto Chomusuke", false, function(value)
     autoChomusukeEnabled = value
     notify("Auto Chomusuke", value and "Enabled" or "Disabled", 3)
@@ -111,37 +140,118 @@ chomusukeToggleCtrl = chomusukeCtrl
 
 -- PAYLOAD PAGE -------------------------------------------------
 
-local payloadInput = ""
-local _, payloadBoxCtrl = payloadPage:CreateTextBox("Paste Remote Spy Code", "local args = { buffer.fromstring(...) } ...", "", function(value)
-    payloadInput = value
+local payloadInput1 = ""
+local _, payloadBoxCtrl1 = payloadPage:CreateTextBox("Paste Payload 1", "local args = { buffer.fromstring(...) } ...", "", function(value)
+    payloadInput1 = value
 end)
 
-payloadPage:CreateButton("Set Payload", function()
-    if payloadInput == "" then
-        notify("Error", "Textbox is empty!", 3)
+payloadPage:CreateButton("Set Payload 1", function()
+    if payloadInput1 == "" then
+        notify("Error", "Textbox 1 is empty!", 3)
         return
     end
 
-    local buf, err = parsePayload(payloadInput)
+    local buf, err = parsePayload(payloadInput1)
     if not buf then
         notify("Parse Failed", err or "Unknown error", 5)
         return
     end
 
-    currentPayload = buf
-    if payloadStatus then
-        payloadStatus:SetText("Payload active (" .. tostring(buffer.len(buf)) .. " bytes)")
-    end
-    notify("Payload Set", "Success! " .. tostring(buffer.len(buf)) .. " bytes", 3)
+    payload1 = buf
+    updatePayloadStatus()
+    notify("Payload 1 Set", "Success! " .. tostring(buffer.len(buf)) .. " bytes", 3)
 end)
 
-payloadPage:CreateButton("Clear Payload", function()
-    currentPayload  = nil
+payloadPage:CreateButton("Clear Payload 1", function()
+    payload1 = nil
+    payloadInput1 = ""
+    if payloadBoxCtrl1 then payloadBoxCtrl1:SetText("") end
+    if not payload1 and not payload2 and not payload3 then
+        killAuraEnabled = false
+    end
+    updatePayloadStatus()
+    notify("Cleared", "Payload 1 cleared", 2)
+end)
+
+local payloadInput2 = ""
+local _, payloadBoxCtrl2 = payloadPage:CreateTextBox("Paste Payload 2", "local args = { buffer.fromstring(...) } ...", "", function(value)
+    payloadInput2 = value
+end)
+
+payloadPage:CreateButton("Set Payload 2", function()
+    if payloadInput2 == "" then
+        notify("Error", "Textbox 2 is empty!", 3)
+        return
+    end
+
+    local buf, err = parsePayload(payloadInput2)
+    if not buf then
+        notify("Parse Failed", err or "Unknown error", 5)
+        return
+    end
+
+    payload2 = buf
+    updatePayloadStatus()
+    notify("Payload 2 Set", "Success! " .. tostring(buffer.len(buf)) .. " bytes", 3)
+end)
+
+payloadPage:CreateButton("Clear Payload 2", function()
+    payload2 = nil
+    payloadInput2 = ""
+    if payloadBoxCtrl2 then payloadBoxCtrl2:SetText("") end
+    if not payload1 and not payload2 and not payload3 then
+        killAuraEnabled = false
+    end
+    updatePayloadStatus()
+    notify("Cleared", "Payload 2 cleared", 2)
+end)
+
+local payloadInput3 = ""
+local _, payloadBoxCtrl3 = payloadPage:CreateTextBox("Paste Payload 3", "local args = { buffer.fromstring(...) } ...", "", function(value)
+    payloadInput3 = value
+end)
+
+payloadPage:CreateButton("Set Payload 3", function()
+    if payloadInput3 == "" then
+        notify("Error", "Textbox 3 is empty!", 3)
+        return
+    end
+
+    local buf, err = parsePayload(payloadInput3)
+    if not buf then
+        notify("Parse Failed", err or "Unknown error", 5)
+        return
+    end
+
+    payload3 = buf
+    updatePayloadStatus()
+    notify("Payload 3 Set", "Success! " .. tostring(buffer.len(buf)) .. " bytes", 3)
+end)
+
+payloadPage:CreateButton("Clear Payload 3", function()
+    payload3 = nil
+    payloadInput3 = ""
+    if payloadBoxCtrl3 then payloadBoxCtrl3:SetText("") end
+    if not payload1 and not payload2 and not payload3 then
+        killAuraEnabled = false
+    end
+    updatePayloadStatus()
+    notify("Cleared", "Payload 3 cleared", 2)
+end)
+
+payloadPage:CreateButton("Clear All Payloads", function()
+    payload1        = nil
+    payload2        = nil
+    payload3        = nil
     killAuraEnabled = false
-    payloadInput    = ""
-    if payloadBoxCtrl then payloadBoxCtrl:SetText("") end
-    if payloadStatus then payloadStatus:SetText("Payload not set") end
-    notify("Cleared", "Payload cleared", 2)
+    payloadInput1   = ""
+    payloadInput2   = ""
+    payloadInput3   = ""
+    if payloadBoxCtrl1 then payloadBoxCtrl1:SetText("") end
+    if payloadBoxCtrl2 then payloadBoxCtrl2:SetText("") end
+    if payloadBoxCtrl3 then payloadBoxCtrl3:SetText("") end
+    updatePayloadStatus()
+    notify("Cleared", "All payloads cleared", 2)
 end)
 
 -- SETTINGS PAGE ------------------------------------------------
@@ -183,7 +293,7 @@ end)
 
 task.spawn(function()
     while IsRunning do
-        if killAuraEnabled and currentPayload then
+        if killAuraEnabled and (payload1 or payload2 or payload3) then
             for i = 1, damageMultiplier do
                 fireKillAura()
             end
