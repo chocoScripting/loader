@@ -27,6 +27,8 @@ local payload3              = nil
 local lastFired             = 1
 local autoChomusukeEnabled  = false
 local chomusukeToggleCtrl   = nil  -- reference to toggle controller for auto-off
+local autoFarmEnabled       = false
+local selectedEnemies       = {}
 
 --================================================================
 -- PARSE PAYLOAD FROM REMOTE SPY
@@ -93,8 +95,318 @@ end
 local Window = Library.new("Broken Blade")
 
 local combatPage   = Window:CreatePage("Combat")
+local farmPage     = Window:CreatePage("Auto Farm")
 local payloadPage  = Window:CreatePage("Payload")
 local settingsPage = Window:CreatePage("Settings")
+
+-- Dynamic runtime fallback patch for CreateMultiDropdown (used for Auto Farm)
+local PageTable = getmetatable(combatPage)
+if PageTable and not PageTable.CreateMultiDropdown then
+    PageTable.CreateMultiDropdown = function(self, text, placeholderText, scanCallback, selectCallback)
+        local parent = self.ScrollFrame
+
+        local row = Instance.new("Frame")
+        row.Name = text .. "Row"
+        row.Size = UDim2.new(1, 0, 0, 38)
+        row.BackgroundTransparency = 1
+        row.Parent = parent
+
+        local label = Instance.new("TextLabel")
+        label.Name = "Label"
+        label.Size = UDim2.new(0.4, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = Color3.fromRGB(220, 220, 220)
+        label.Font = Enum.Font.GothamMedium
+        label.TextSize = 12
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = row
+
+        local button = Instance.new("TextButton")
+        button.Name = "DropdownButton"
+        button.Size = UDim2.new(0.58, 0, 0, 24)
+        button.Position = UDim2.new(0.42, 0, 0.5, -12)
+        button.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+        button.TextColor3 = Color3.fromRGB(220, 220, 220)
+        button.Text = placeholderText .. "  ▼"
+        button.Font = Enum.Font.GothamMedium
+        button.TextSize = 11
+        button.BorderSizePixel = 0
+        button.Parent = row
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 6)
+        btnCorner.Parent = button
+
+        local btnStroke = Instance.new("UIStroke")
+        btnStroke.Color = Color3.fromRGB(50, 50, 50)
+        btnStroke.Thickness = 1.0
+        btnStroke.Parent = button
+
+        -- List container (floating dropdown list)
+        local listContainer = Instance.new("ScrollingFrame")
+        listContainer.Name = "DropdownList"
+        listContainer.Size = UDim2.new(0.58, 0, 0, 110)
+        listContainer.Position = UDim2.new(0.42, 0, 1, 4)
+        listContainer.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+        listContainer.BorderSizePixel = 0
+        listContainer.ZIndex = 100
+        listContainer.Visible = false
+        listContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+        listContainer.ScrollBarThickness = 3
+        listContainer.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 80)
+        listContainer.Parent = row
+
+        local listCorner = Instance.new("UICorner")
+        listCorner.CornerRadius = UDim.new(0, 6)
+        listCorner.Parent = listContainer
+
+        local listStroke = Instance.new("UIStroke")
+        listStroke.Color = Color3.fromRGB(80, 80, 80)
+        listStroke.Thickness = 1.0
+        listStroke.Parent = listContainer
+
+        local listLayout = Instance.new("UIListLayout")
+        listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        listLayout.Padding = UDim.new(0, 2)
+        listLayout.Parent = listContainer
+
+        local listPadding = Instance.new("UIPadding")
+        listPadding.PaddingTop = UDim.new(0, 4)
+        listPadding.PaddingBottom = UDim.new(0, 4)
+        listPadding.PaddingLeft = UDim.new(0, 4)
+        listPadding.PaddingRight = UDim.new(0, 4)
+        listPadding.Parent = listContainer
+
+        local isOpen = false
+        local selected = {} -- Dict of selected values: [value] = true/nil
+        local optionLabels = {} -- Cache of value to label mapping
+
+        local function getPageScroll()
+            local curr = row
+            while curr do
+                if curr:IsA("ScrollingFrame") then
+                    return curr
+                end
+                curr = curr.Parent
+            end
+            return nil
+        end
+
+        local function updateButtonText()
+            local count = 0
+            local displayLabels = {}
+            for val, _ in pairs(selected) do
+                count = count + 1
+                local labelText = optionLabels[val] or tostring(val)
+                table.insert(displayLabels, labelText)
+            end
+            
+            if count == 0 then
+                button.Text = placeholderText .. "  ▼"
+            else
+                local concatenated = table.concat(displayLabels, ", ")
+                if #concatenated > 20 then
+                    button.Text = tostring(count) .. " Selected  ▼"
+                else
+                    button.Text = concatenated .. "  ▼"
+                end
+            end
+        end
+
+        local function refreshList()
+            -- Clear existing items
+            for _, child in ipairs(listContainer:GetChildren()) do
+                if child:IsA("TextButton") then
+                    child:Destroy()
+                end
+            end
+
+            -- Populate Options
+            local options = scanCallback()
+            optionLabels = {}
+            if #options == 0 then
+                local noItem = Instance.new("TextButton")
+                noItem.Size = UDim2.new(1, 0, 0, 24)
+                noItem.BackgroundTransparency = 1
+                noItem.Text = "No Options"
+                noItem.TextColor3 = Color3.fromRGB(150, 150, 150)
+                noItem.Font = Enum.Font.GothamItalic
+                noItem.TextSize = 11
+                noItem.ZIndex = 12
+                noItem.Parent = listContainer
+            else
+                for _, option in ipairs(options) do
+                    local optLabel = type(option) == "table" and (option.Name or option.Value or tostring(option)) or tostring(option)
+                    local optValue = type(option) == "table" and (option.Value or option.Name or tostring(option)) or option
+
+                    optionLabels[optValue] = optLabel
+
+                    local optBtn = Instance.new("TextButton")
+                    optBtn.Size = UDim2.new(1, 0, 0, 24)
+                    optBtn.Font = Enum.Font.GothamMedium
+                    optBtn.TextSize = 11
+                    optBtn.ZIndex = 12
+                    optBtn.Parent = listContainer
+
+                    local isSel = selected[optValue] ~= nil
+                    if isSel then
+                        optBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                        optBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        optBtn.Text = "✓ " .. optLabel
+                    else
+                        optBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+                        optBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
+                        optBtn.Text = optLabel
+                    end
+
+                    local optCorner = Instance.new("UICorner")
+                    optCorner.CornerRadius = UDim.new(0, 4)
+                    optCorner.Parent = optBtn
+
+                    optBtn.MouseButton1Click:Connect(function()
+                        if selected[optValue] then
+                            selected[optValue] = nil
+                        else
+                            selected[optValue] = true
+                        end
+                        
+                        -- Update the current button visually without closing dropdown
+                        local newSel = selected[optValue] ~= nil
+                        if newSel then
+                            optBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                            optBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                            optBtn.Text = "✓ " .. optLabel
+                        else
+                            optBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+                            optBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
+                            optBtn.Text = optLabel
+                        end
+
+                        updateButtonText()
+                        
+                        -- Trigger callback
+                        local selectedList = {}
+                        for val, _ in pairs(selected) do
+                            table.insert(selectedList, val)
+                        end
+                        selectCallback(selectedList, selected)
+                    end)
+
+                    optBtn.MouseEnter:Connect(function()
+                        optBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+                        optBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    end)
+
+                    optBtn.MouseLeave:Connect(function()
+                        local currentlySel = selected[optValue] ~= nil
+                        if currentlySel then
+                            optBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                            optBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        else
+                            optBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+                            optBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
+                        end
+                    end)
+                end
+            end
+
+            task.defer(function()
+                listContainer.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
+            end)
+        end
+
+        local function toggleDropdown()
+            isOpen = not isOpen
+            local pageScroll = getPageScroll()
+            if pageScroll then
+                pageScroll.ClipsDescendants = not isOpen
+            end
+            
+            if isOpen then
+                row.ZIndex = 10
+                button.ZIndex = 10
+                listContainer.ZIndex = 11
+
+                refreshList()
+
+                listContainer.Visible = true
+                btnStroke.Color = Color3.fromRGB(255, 255, 255)
+            else
+                row.ZIndex = 1
+                button.ZIndex = 1
+                listContainer.ZIndex = 1
+                listContainer.Visible = false
+                btnStroke.Color = Color3.fromRGB(50, 50, 50)
+            end
+        end
+
+        button.MouseButton1Click:Connect(toggleDropdown)
+
+        button.MouseEnter:Connect(function()
+            if not isOpen then
+                button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                btnStroke.Color = Color3.fromRGB(100, 100, 100)
+            end
+        end)
+
+        button.MouseLeave:Connect(function()
+            if not isOpen then
+                button.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+                btnStroke.Color = Color3.fromRGB(50, 50, 50)
+            end
+        end)
+
+        local controller = {}
+        function controller:SetSelected(newSelectedDict)
+            selected = {}
+            for val, state in pairs(newSelectedDict) do
+                if state then
+                    selected[val] = true
+                end
+            end
+            updateButtonText()
+            if isOpen then
+                refreshList()
+            end
+        end
+        
+        function controller:GetSelected()
+            local list = {}
+            for val, _ in pairs(selected) do
+                table.insert(list, val)
+            end
+            return list, selected
+        end
+
+        return row, controller
+    end
+end
+
+-- AUTO FARM PAGE ------------------------------------------------
+
+farmPage:CreateToggle("Auto Farm", false, function(value)
+    autoFarmEnabled = value
+    notify("Auto Farm", value and "Enabled" or "Disabled", 3)
+end)
+
+farmPage:CreateMultiDropdown("Select Enemies", "Choose Enemies", function()
+    local names = {}
+    local seen = {}
+    local enemyService = workspace:FindFirstChild("EnemyService")
+    if enemyService then
+        for _, child in ipairs(enemyService:GetChildren()) do
+            if child:IsA("Model") and not seen[child.Name] then
+                seen[child.Name] = true
+                table.insert(names, child.Name)
+            end
+        end
+    end
+    table.sort(names)
+    return names
+end, function(selectedList, selectedDict)
+    selectedEnemies = selectedDict
+end)
 
 local function notify(title, text, duration)
     if Window then Window:Notify(title, text, duration) end
@@ -261,6 +573,7 @@ local _, fpsCtrl = settingsPage:CreateLabel("FPS", "60")
 settingsPage:CreateButton("Destroy GUI", function()
     IsRunning       = false
     killAuraEnabled = false
+    autoFarmEnabled = false
     Window:Destroy()
 end)
 
@@ -319,10 +632,7 @@ task.spawn(function()
                 and workspace.World.NPC:FindFirstChild("Chomusuke")
 
             if not chomusukeFolder then
-                notify("Auto Chomusuke", "Chomusuke folder not found!", 4)
-                autoChomusukeEnabled = false
-                if chomusukeToggleCtrl then chomusukeToggleCtrl:SetState(false) end
-                task.wait(0.2)
+                task.wait(1)
             else
                 -- Iterate ALL models: teleport first, THEN check highlight (it only appears when nearby)
                 local models = chomusukeFolder:GetChildren()
@@ -369,11 +679,9 @@ task.spawn(function()
                         or tick() > timeout
                 end
 
-                -- After a full pass: if zero models had a highlight, auto-disable
-                if autoChomusukeEnabled and not foundAny then
-                    notify("Auto Chomusuke", "No targets left. Disabling.", 4)
-                    autoChomusukeEnabled = false
-                    if chomusukeToggleCtrl then chomusukeToggleCtrl:SetState(false) end
+                -- If no targets had highlight, wait a bit before starting the next pass
+                if not foundAny then
+                    task.wait(1)
                 end
             end
         end
@@ -395,6 +703,78 @@ task.spawn(function()
             task.wait(0.1)
         else
             task.wait(0.3)
+        end
+    end
+end)
+
+--================================================================
+-- AUTO FARM LOOP
+--================================================================
+
+task.spawn(function()
+    while IsRunning do
+        if not autoFarmEnabled then
+            task.wait(0.2)
+        else
+            local enemyService = workspace:FindFirstChild("EnemyService")
+            if not enemyService then
+                task.wait(1)
+            else
+                -- Gather all matching alive enemies
+                local targets = {}
+                for _, child in ipairs(enemyService:GetChildren()) do
+                    if child:IsA("Model") then
+                        -- Check if child's name matches any selected enemy
+                        local nameMatch = false
+                        if selectedEnemies[child.Name] then
+                            nameMatch = true
+                        else
+                            -- Fallback to substring matching just in case
+                            for selName, enabled in pairs(selectedEnemies) do
+                                if enabled and (string.find(child.Name, selName, 1, true) or string.find(selName, child.Name, 1, true)) then
+                                    nameMatch = true
+                                    break
+                                end
+                            end
+                        end
+
+                        if nameMatch then
+                            local humanoid = child:FindFirstChildWhichIsA("Humanoid")
+                            local hrpPart = child:FindFirstChild("HumanoidRootPart") or child.PrimaryPart
+                            if humanoid and humanoid.Health > 0.1 and hrpPart then
+                                table.insert(targets, {
+                                    Model = child,
+                                    Humanoid = humanoid,
+                                    RootPart = hrpPart
+                                })
+                            end
+                        end
+                    end
+                end
+
+                if #targets == 0 then
+                    -- No targets found/alive, wait for respawn
+                    task.wait(1)
+                else
+                    -- Teleport to enemies one by one
+                    for _, target in ipairs(targets) do
+                        if not autoFarmEnabled or not IsRunning then break end
+
+                        -- Verify target is still valid and alive
+                        if target.Model.Parent and target.Humanoid.Health > 0.1 and target.RootPart.Parent then
+                            -- Teleport once to the target
+                            pcall(function()
+                                hrp.CFrame = target.RootPart.CFrame
+                            end)
+
+                            -- Wait until target is dead or no longer exists
+                            while autoFarmEnabled and IsRunning and target.Model.Parent and target.Humanoid.Health > 0.1 and target.RootPart.Parent do
+                                task.wait(0.1)
+                            end
+                        end
+                    end
+                end
+            end
         end
     end
 end)
