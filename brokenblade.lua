@@ -20,15 +20,15 @@ end)
 -- STATE
 local IsRunning             = true
 local killAuraEnabled       = false
-local damageMultiplier      = 1
-local payload1              = nil
-local payload2              = nil
-local payload3              = nil
+local payloads              = {}  -- Dynamic list of payloads: { [index] = buffer }
 local lastFired             = 1
 local autoChomusukeEnabled  = false
 local chomusukeToggleCtrl   = nil  -- reference to toggle controller for auto-off
 local autoFarmEnabled       = false
 local selectedEnemies       = {}
+local selectedPayloads      = {}  -- For multi-select dropdown: { index = true }
+local antiAfkEnabled        = false
+local antiAfkInterval       = 300  -- Default 5 minutes in seconds
 
 --================================================================
 -- PARSE PAYLOAD FROM REMOTE SPY
@@ -70,11 +70,13 @@ local function fireKillAura()
     local remoteEvent = ReplicatedStorage:FindFirstChild("Remote_Event")
     if not remoteEvent then return end
 
-    -- Build list of active payloads
+    -- Build list of active payloads from selected ones
     local active = {}
-    if payload1 then active[#active+1] = payload1 end
-    if payload2 then active[#active+1] = payload2 end
-    if payload3 then active[#active+1] = payload3 end
+    for idx, _ in pairs(selectedPayloads) do
+        if payloads[idx] then
+            active[#active+1] = payloads[idx]
+        end
+    end
 
     if #active == 0 then return end
 
@@ -97,6 +99,7 @@ local Window = Library.new("Broken Blade")
 local combatPage   = Window:CreatePage("Combat")
 local farmPage     = Window:CreatePage("Auto Farm")
 local payloadPage  = Window:CreatePage("Payload")
+local configPage   = Window:CreatePage("Config")
 local settingsPage = Window:CreatePage("Settings")
 
 -- Dynamic runtime fallback patch for CreateMultiDropdown (used for Auto Farm)
@@ -225,6 +228,33 @@ if PageTable and not PageTable.CreateMultiDropdown then
             -- Populate Options
             local options = scanCallback()
             optionLabels = {}
+            
+            -- Clean up selected dict to remove invalid options
+            local validValues = {}
+            for _, option in ipairs(options) do
+                local optValue = type(option) == "table" and (option.Value or option.Name or tostring(option)) or option
+                validValues[optValue] = true
+            end
+            local toRemove = {}
+            for val, _ in pairs(selected) do
+                if not validValues[val] then
+                    table.insert(toRemove, val)
+                end
+            end
+            for _, val in ipairs(toRemove) do
+                selected[val] = nil
+            end
+            
+            if #toRemove > 0 then
+                updateButtonText()
+                -- Trigger callback with cleaned selection
+                local selectedList = {}
+                for val, _ in pairs(selected) do
+                    table.insert(selectedList, val)
+                end
+                selectCallback(selectedList, selected)
+            end
+            
             if #options == 0 then
                 local noItem = Instance.new("TextButton")
                 noItem.Size = UDim2.new(1, 0, 0, 24)
@@ -415,7 +445,7 @@ end
 -- COMBAT PAGE --------------------------------------------------
 
 combatPage:CreateToggle("Kill Aura", false, function(value)
-    if value and not payload1 and not payload2 then
+    if value and #payloads == 0 then
         notify("Kill Aura", "Set at least one payload first!", 4)
         killAuraEnabled = false
         return
@@ -424,9 +454,9 @@ combatPage:CreateToggle("Kill Aura", false, function(value)
     notify("Kill Aura", value and "Enabled" or "Disabled", 3)
 end)
 
-combatPage:CreateTextBox("Multiplier", "1-100", damageMultiplier, function(value)
-    damageMultiplier = math.max(1, math.floor(value))
-    notify("Multiplier Set", "Damage multiplier: " .. tostring(damageMultiplier), 2)
+combatPage:CreateToggle("Anti Afk (block)", false, function(value)
+    antiAfkEnabled = value
+    notify("Anti Afk", value and "Enabled" or "Disabled", 3)
 end)
 
 local _, payloadStatus = combatPage:CreateLabel("Status", "Payload not set")
@@ -434,9 +464,11 @@ local _, payloadStatus = combatPage:CreateLabel("Status", "Payload not set")
 local function updatePayloadStatus()
     if not payloadStatus then return end
     local parts = {}
-    if payload1 then parts[#parts+1] = "P1(" .. tostring(buffer.len(payload1)) .. "B)" end
-    if payload2 then parts[#parts+1] = "P2(" .. tostring(buffer.len(payload2)) .. "B)" end
-    if payload3 then parts[#parts+1] = "P3(" .. tostring(buffer.len(payload3)) .. "B)" end
+    for i = 1, #payloads do
+        if payloads[i] then
+            parts[#parts+1] = "P" .. tostring(i) .. "(" .. tostring(buffer.len(payloads[i])) .. "B)"
+        end
+    end
     if #parts > 0 then
         payloadStatus:SetText(table.concat(parts, " | ") .. " active")
     else
@@ -452,118 +484,100 @@ chomusukeToggleCtrl = chomusukeCtrl
 
 -- PAYLOAD PAGE -------------------------------------------------
 
-local payloadInput1 = ""
-local _, payloadBoxCtrl1 = payloadPage:CreateTextBox("Paste Payload 1", "local args = { buffer.fromstring(...) } ...", "", function(value)
-    payloadInput1 = value
+local payloadInput = ""
+local _, payloadBoxCtrl = payloadPage:CreateTextBox("Paste Payload", "local args = { buffer.fromstring(...) } ...", "", function(value)
+    payloadInput = value
 end)
 
-payloadPage:CreateButton("Set Payload 1", function()
-    if payloadInput1 == "" then
-        notify("Error", "Textbox 1 is empty!", 3)
+-- Multi-select dropdown for payloads
+local _, payloadDropdownCtrl = payloadPage:CreateMultiDropdown("Select Payloads", "Choose Payloads", function()
+    local options = {}
+    for i = 1, #payloads do
+        table.insert(options, { Name = "Payload " .. tostring(i), Value = i })
+    end
+    return options
+end, function(selectedList, selectedDict)
+    -- Clean up selectedPayloads to only include valid indices
+    local cleaned = {}
+    for idx, state in pairs(selectedDict) do
+        if state and payloads[idx] then
+            cleaned[idx] = true
+        end
+    end
+    selectedPayloads = cleaned
+end)
+
+payloadPage:CreateButton("Add Payload", function()
+    if payloadInput == "" then
+        notify("Error", "Textbox is empty!", 3)
         return
     end
 
-    local buf, err = parsePayload(payloadInput1)
+    local buf, err = parsePayload(payloadInput)
     if not buf then
         notify("Parse Failed", err or "Unknown error", 5)
         return
     end
 
-    payload1 = buf
+    -- Add to payloads list
+    payloads[#payloads + 1] = buf
+    -- Auto-select the new payload
+    selectedPayloads[#payloads] = true
+    -- Update dropdown
+    if payloadDropdownCtrl then
+        payloadDropdownCtrl:SetSelected(selectedPayloads)
+    end
+    -- Clear textbox
+    payloadInput = ""
+    if payloadBoxCtrl then payloadBoxCtrl:SetText("") end
+    
     updatePayloadStatus()
-    notify("Payload 1 Set", "Success! " .. tostring(buffer.len(buf)) .. " bytes", 3)
+    notify("Payload Added", "Payload " .. tostring(#payloads) .. " added! " .. tostring(buffer.len(buf)) .. " bytes", 3)
 end)
 
-payloadPage:CreateButton("Clear Payload 1", function()
-    payload1 = nil
-    payloadInput1 = ""
-    if payloadBoxCtrl1 then payloadBoxCtrl1:SetText("") end
-    if not payload1 and not payload2 and not payload3 then
+payloadPage:CreateButton("Delete Payload", function()
+    local count = 0
+    for _ in pairs(selectedPayloads) do
+        count = count + 1
+    end
+    
+    if count == 0 then
+        notify("Error", "No payload selected!", 3)
+        return
+    end
+    
+    -- Delete selected payloads (in reverse order to preserve indices)
+    local toDelete = {}
+    for idx, _ in pairs(selectedPayloads) do
+        table.insert(toDelete, idx)
+    end
+    table.sort(toDelete, function(a, b) return a > b end)
+    
+    for _, idx in ipairs(toDelete) do
+        table.remove(payloads, idx)
+    end
+    
+    -- Clear all selections
+    selectedPayloads = {}
+    
+    if payloadDropdownCtrl then
+        payloadDropdownCtrl:SetSelected(selectedPayloads)
+    end
+    
+    -- Disable kill aura if no payloads left
+    if #payloads == 0 then
         killAuraEnabled = false
     end
+    
     updatePayloadStatus()
-    notify("Cleared", "Payload 1 cleared", 2)
+    notify("Deleted", tostring(count) .. " payload(s) deleted", 2)
 end)
 
-local payloadInput2 = ""
-local _, payloadBoxCtrl2 = payloadPage:CreateTextBox("Paste Payload 2", "local args = { buffer.fromstring(...) } ...", "", function(value)
-    payloadInput2 = value
-end)
+-- CONFIG PAGE --------------------------------------------------
 
-payloadPage:CreateButton("Set Payload 2", function()
-    if payloadInput2 == "" then
-        notify("Error", "Textbox 2 is empty!", 3)
-        return
-    end
-
-    local buf, err = parsePayload(payloadInput2)
-    if not buf then
-        notify("Parse Failed", err or "Unknown error", 5)
-        return
-    end
-
-    payload2 = buf
-    updatePayloadStatus()
-    notify("Payload 2 Set", "Success! " .. tostring(buffer.len(buf)) .. " bytes", 3)
-end)
-
-payloadPage:CreateButton("Clear Payload 2", function()
-    payload2 = nil
-    payloadInput2 = ""
-    if payloadBoxCtrl2 then payloadBoxCtrl2:SetText("") end
-    if not payload1 and not payload2 and not payload3 then
-        killAuraEnabled = false
-    end
-    updatePayloadStatus()
-    notify("Cleared", "Payload 2 cleared", 2)
-end)
-
-local payloadInput3 = ""
-local _, payloadBoxCtrl3 = payloadPage:CreateTextBox("Paste Payload 3", "local args = { buffer.fromstring(...) } ...", "", function(value)
-    payloadInput3 = value
-end)
-
-payloadPage:CreateButton("Set Payload 3", function()
-    if payloadInput3 == "" then
-        notify("Error", "Textbox 3 is empty!", 3)
-        return
-    end
-
-    local buf, err = parsePayload(payloadInput3)
-    if not buf then
-        notify("Parse Failed", err or "Unknown error", 5)
-        return
-    end
-
-    payload3 = buf
-    updatePayloadStatus()
-    notify("Payload 3 Set", "Success! " .. tostring(buffer.len(buf)) .. " bytes", 3)
-end)
-
-payloadPage:CreateButton("Clear Payload 3", function()
-    payload3 = nil
-    payloadInput3 = ""
-    if payloadBoxCtrl3 then payloadBoxCtrl3:SetText("") end
-    if not payload1 and not payload2 and not payload3 then
-        killAuraEnabled = false
-    end
-    updatePayloadStatus()
-    notify("Cleared", "Payload 3 cleared", 2)
-end)
-
-payloadPage:CreateButton("Clear All Payloads", function()
-    payload1        = nil
-    payload2        = nil
-    payload3        = nil
-    killAuraEnabled = false
-    payloadInput1   = ""
-    payloadInput2   = ""
-    payloadInput3   = ""
-    if payloadBoxCtrl1 then payloadBoxCtrl1:SetText("") end
-    if payloadBoxCtrl2 then payloadBoxCtrl2:SetText("") end
-    if payloadBoxCtrl3 then payloadBoxCtrl3:SetText("") end
-    updatePayloadStatus()
-    notify("Cleared", "All payloads cleared", 2)
+configPage:CreateTextBox("Anti Afk Interval (seconds)", "1-3600", antiAfkInterval, function(value)
+    antiAfkInterval = math.max(1, math.floor(value))
+    notify("Interval Set", "Anti Afk interval: " .. tostring(antiAfkInterval) .. " seconds", 2)
 end)
 
 -- SETTINGS PAGE ------------------------------------------------
@@ -606,13 +620,11 @@ end)
 
 task.spawn(function()
     while IsRunning do
-        if killAuraEnabled and (payload1 or payload2 or payload3) then
-            for i = 1, damageMultiplier do
-                fireKillAura()
-            end
+        if killAuraEnabled and #payloads > 0 then
+            fireKillAura()
             task.wait(0.0001)
         else
-            task.wait(0.2)
+            task.wait(0.01)
         end
     end
 end)
@@ -779,6 +791,25 @@ task.spawn(function()
     end
 end)
 
+--================================================================
+-- ANTI AFK LOOP
+--================================================================
+
+task.spawn(function()
+    while IsRunning do
+        if not antiAfkEnabled then
+            task.wait(1)
+        else
+            pcall(function()
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+                task.wait(0.05)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+            end)
+            task.wait(antiAfkInterval)
+        end
+    end
+end)
+
 print("Broken Blade loaded!")
 print("Press G to toggle UI | Set a payload in the Payload tab first!")
-print("Kill Aura | Damage Multiplier")
+print("Kill Aura | Anti Afk")
