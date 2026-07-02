@@ -29,6 +29,7 @@ local selectedEnemies       = {}
 local selectedPayloads      = {}  -- For multi-select dropdown: { index = true }
 local antiAfkEnabled        = false
 local antiAfkInterval       = 300  -- Default 5 minutes in seconds
+local autoParryBossEnabled  = false
 
 --================================================================
 -- PARSE PAYLOAD FROM REMOTE SPY
@@ -459,6 +460,11 @@ combatPage:CreateToggle("Anti Afk (block)", false, function(value)
     notify("Anti Afk", value and "Enabled" or "Disabled", 3)
 end)
 
+combatPage:CreateToggle("Auto Parry Boss", false, function(value)
+    autoParryBossEnabled = value
+    notify("Auto Parry Boss", value and "Enabled" or "Disabled", 3)
+end)
+
 local _, payloadStatus = combatPage:CreateLabel("Status", "Payload not set")
 
 local function updatePayloadStatus()
@@ -575,8 +581,8 @@ end)
 
 -- CONFIG PAGE --------------------------------------------------
 
-configPage:CreateTextBox("Anti Afk Interval (seconds)", "1-3600", antiAfkInterval, function(value)
-    antiAfkInterval = math.max(1, math.floor(value))
+configPage:CreateTextBox("Anti Afk Interval (seconds)", "0.1-3600", antiAfkInterval, function(value)
+    antiAfkInterval = math.max(0.1, value)
     notify("Interval Set", "Anti Afk interval: " .. tostring(antiAfkInterval) .. " seconds", 2)
 end)
 
@@ -622,7 +628,7 @@ task.spawn(function()
     while IsRunning do
         if killAuraEnabled and #payloads > 0 then
             fireKillAura()
-            task.wait(0.0001)
+            task.wait(0.00001)
         else
             task.wait(0.01)
         end
@@ -806,6 +812,41 @@ task.spawn(function()
                 VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
             end)
             task.wait(antiAfkInterval)
+        end
+    end
+end)
+
+--================================================================
+-- AUTO PARRY BOSS LOOP
+--================================================================
+
+task.spawn(function()
+    while IsRunning do
+        if not autoParryBossEnabled then
+            task.wait(0.2)
+        else
+            local skillRuntime = workspace:FindFirstChild("__Player3CSkillRuntime")
+            if not skillRuntime then
+                task.wait(0.5)
+            else
+                -- Check for Boss攻击红光VFX part
+                local bossVFX = skillRuntime:FindFirstChild("Boss攻击红光VFX")
+                if bossVFX then
+                    -- Wait 0.2 seconds then press F
+                    task.wait(0.2)
+                    if autoParryBossEnabled then
+                        pcall(function()
+                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+                            task.wait(0.05)
+                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                        end)
+                    end
+                    -- Wait a bit before checking again to avoid spamming
+                    task.wait(0.5)
+                else
+                    task.wait(0.1)
+                end
+            end
         end
     end
 end)
