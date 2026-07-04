@@ -431,10 +431,13 @@ function Library:CreateDraggableToggle(themeColor, guiVisibleState)
 		end
 	end
 	
-	-- Store controller in frame for easy access
-	toggleFrame.Controller = controller
+	-- Store controller reference in a safe way (using ObjectValue)
+	local controllerValue = Instance.new("ObjectValue")
+	controllerValue.Name = "Controller"
+	controllerValue.Value = controller
+	controllerValue.Parent = toggleFrame
 	
-	return toggleFrame
+	return toggleFrame, controller
 end
 
 --// Page Definition
