@@ -1,4 +1,73 @@
 --// GUI Link to Use in Scripts: https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/GUI.lua
+--//
+--// ================================================================================
+--// IMPORTANT: DO NOT COPY THIS ENTIRE FILE INTO YOUR SCRIPT
+--// ================================================================================
+--// When using this GUI library with an AI agent, ALWAYS import from GitHub:
+--//
+--// IMPORT CODE:
+--// local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/GUI.lua"))()
+--//
+--// SIMPLE USAGE EXAMPLE:
+--// local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/GUI.lua"))()
+--//
+--// local Window = Library.new("My Script")
+--//
+--// local mainPage = Window:CreatePage("Main")
+--// mainPage:CreateToggle("Auto Farm", false, function(value)
+--//     print("Auto Farm:", value)
+--// end)
+--//
+--// local settingsPage = Window:CreatePage("Settings")
+--// settingsPage:CreateButton("Destroy GUI", function()
+--//     Window:Destroy()
+--// end)
+--//
+--// ================================================================================
+--//
+--// OPTIONAL FEATURES (Built-in):
+--// ================================================================================
+--//
+--// 1. DRAGGABLE TOGGLE BUTTON:
+--//    Creates a small draggable button to toggle GUI visibility.
+--//
+--//    REQUIRED SETUP IN YOUR SCRIPT:
+--//    local UserInputService = game:GetService("UserInputService")
+--//    local ThemeColor = Color3.fromRGB(100, 200, 255) -- Your theme color
+--//    local guiVisible = true
+--//    local toggleKey = Enum.KeyCode.C -- Default toggle key
+--//
+--//    -- Create the toggle button AFTER Window.new()
+--//    local toggleButton = Window:CreateDraggableToggle(ThemeColor, guiVisible)
+--//
+--//    -- Add key config in Settings page (optional)
+--//    settingsPage:CreateTextBox("Toggle Key", "Key Name", "C", function(value)
+--//        local keyName = tostring(value):upper()
+--//        local success, keyCode = pcall(function()
+--//            return Enum.KeyCode[keyName]
+--//        end)
+--//        if success and keyCode then
+--//            toggleKey = keyCode
+--//            local toggleLabel = toggleButton:FindFirstChild("ToggleLabel")
+--//            if toggleLabel then
+--//                toggleLabel.Text = keyName
+--//            end
+--//            Window:Notify("Toggle Key Set", "Press " .. keyName .. " to toggle GUI", 2)
+--//        else
+--//            Window:Notify("Invalid Key", "Please use a valid key name (e.g., C, G, H)", 3)
+--//        end
+--//    end)
+--//
+--//    -- Add custom key toggle (override library's G key)
+--//    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+--//        if gameProcessed then return end
+--//        if input.KeyCode == toggleKey then
+--//            guiVisible = not guiVisible
+--//            Window.MainFrame.Visible = guiVisible
+--//        end
+--//    end)
+--//
+--// ================================================================================
 
 --// Services
 local Players = game:GetService("Players")
@@ -266,6 +335,106 @@ function Library:Destroy()
 	if self.ScreenGui then
 		pcall(function() self.ScreenGui:Destroy() end)
 	end
+end
+
+--// Create Draggable Toggle Button Method
+function Library:CreateDraggableToggle(themeColor, guiVisibleState)
+	local screenGui = self.ScreenGui
+	local mainFrame = self.MainFrame
+	
+	-- Create toggle button frame
+	local toggleFrame = Instance.new("Frame")
+	toggleFrame.Name = "ToggleFrame"
+	toggleFrame.Size = UDim2.new(0, 40, 0, 40)
+	toggleFrame.Position = UDim2.new(0, 20, 0, 20)
+	toggleFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+	toggleFrame.BackgroundTransparency = 0.2
+	toggleFrame.BorderSizePixel = 0
+	toggleFrame.Parent = screenGui
+	
+	local toggleCorner = Instance.new("UICorner")
+	toggleCorner.CornerRadius = UDim.new(0, 8)
+	toggleCorner.Parent = toggleFrame
+	
+	local toggleStroke = Instance.new("UIStroke")
+	toggleStroke.Color = themeColor or Color3.fromRGB(100, 200, 255)
+	toggleStroke.Thickness = 1.5
+	toggleStroke.Parent = toggleFrame
+	
+	-- Create letter label
+	local toggleLabel = Instance.new("TextLabel")
+	toggleLabel.Name = "ToggleLabel"
+	toggleLabel.Size = UDim2.new(1, 0, 1, 0)
+	toggleLabel.BackgroundTransparency = 1
+	toggleLabel.Text = "C"
+	toggleLabel.TextColor3 = themeColor or Color3.fromRGB(100, 200, 255)
+	toggleLabel.Font = Enum.Font.GothamBold
+	toggleLabel.TextSize = 18
+	toggleLabel.Parent = toggleFrame
+	
+	-- Make draggable
+	local dragging = false
+	local dragInput
+	local dragStart
+	local startPos
+	local isClick = false
+	local clickThreshold = 5 -- pixels
+	
+	local function update(input)
+		local delta = input.Position - dragStart
+		if math.abs(delta.X) > clickThreshold or math.abs(delta.Y) > clickThreshold then
+			isClick = false
+		end
+		toggleFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+	
+	toggleFrame.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			isClick = true
+			dragStart = input.Position
+			startPos = toggleFrame.Position
+			
+			local connChanged
+			connChanged = input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+					if isClick then
+						guiVisibleState = not guiVisibleState
+						mainFrame.Visible = guiVisibleState
+					end
+					if connChanged then connChanged:Disconnect() end
+				end
+			end)
+		end
+	end)
+	
+	toggleFrame.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+	
+	local dragConn = UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			update(input)
+		end
+	end)
+	
+	table.insert(self.Connections, dragConn)
+	
+	-- Add controller for updating the key label
+	local controller = {}
+	function controller:SetKeyLabel(keyName)
+		if toggleLabel then
+			toggleLabel.Text = keyName
+		end
+	end
+	
+	-- Store controller in frame for easy access
+	toggleFrame.Controller = controller
+	
+	return toggleFrame
 end
 
 --// Page Definition
