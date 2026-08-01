@@ -1,75 +1,139 @@
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
 
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
-local PhysicsService = game:GetService("PhysicsService")
 
 -- =========================
--- PLAYER-ONLY NOCLIP SETUP
+-- FULL NOCLIP WITH TOGGLE GUI
 -- =========================
-local function setupPlayerOnlyNoclip()
-    -- Create collision groups
-    local groupName = "LocalPlayerChar"
-    local otherPlayersGroup = "OtherPlayersChar"
-    
-    pcall(function()
-        PhysicsService:CreateCollisionGroup(groupName)
-        PhysicsService:CreateCollisionGroup(otherPlayersGroup)
-    end)
-    
-    -- Disable collision between local player and other players
-    PhysicsService:CollisionGroupSetCollidable(groupName, otherPlayersGroup, false)
-    
-    -- Function to set up local player's character
-    local function setupLocalCharacter(char)
-        if not char then return end
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                PhysicsService:SetPartCollisionGroup(part, groupName)
-            end
-        end
+local NoclipEnabled = false
+local NoclipConnection = nil
+
+-- Helper: Make Frame Draggable
+local function makeDraggable(dragPart, mainPart)
+    local dragging = false
+    local dragInput
+    local dragStart
+    local startPos
+
+    local function update(input)
+        local delta = input.Position - dragStart
+        mainPart.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
-    
-    -- Function to set up other players' characters
-    local function setupOtherCharacter(char, player)
-        if not char or player == LocalPlayer then return end
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                PhysicsService:SetPartCollisionGroup(part, otherPlayersGroup)
-            end
-        end
-    end
-    
-    -- Setup current local player character
-    if LocalPlayer.Character then
-        setupLocalCharacter(LocalPlayer.Character)
-    end
-    LocalPlayer.CharacterAdded:Connect(setupLocalCharacter)
-    
-    -- Setup all other players' characters
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            if player.Character then
-                setupOtherCharacter(player.Character, player)
-            end
-            player.CharacterAdded:Connect(function(char)
-                setupOtherCharacter(char, player)
+
+    local conn1 = dragPart.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainPart.Position
+
+            local connChanged
+            connChanged = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    if connChanged then connChanged:Disconnect() end
+                end
             end)
         end
+    end)
+
+    local conn2 = dragPart.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    local conn3 = UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
+
+    return {conn1, conn2, conn3}
+end
+
+-- Toggle Noclip Function
+local function toggleNoclip(enabled)
+    NoclipEnabled = enabled
+    
+    if NoclipConnection then
+        NoclipConnection:Disconnect()
+        NoclipConnection = nil
     end
     
-    -- Setup new players joining
-    Players.PlayerAdded:Connect(function(player)
-        if player.Character then
-            setupOtherCharacter(player.Character, player)
-        end
-        player.CharacterAdded:Connect(function(char)
-            setupOtherCharacter(char, player)
+    if enabled then
+        NoclipConnection = game:GetService("RunService").Stepped:Connect(function()
+            local char = LocalPlayer.Character
+            if char then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
         end)
+    else
+        -- Re-enable collision
+        local char = LocalPlayer.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+end
+
+-- Create Small Toggle GUI
+local function createNoclipGui()
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+    local existing = playerGui:FindFirstChild("NoclipGui")
+    if existing then existing:Destroy() end
+    
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "NoclipGui"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = playerGui
+    
+    -- Draggable container (no background)
+    local container = Instance.new("Frame")
+    container.Name = "Container"
+    container.Size = UDim2.new(0, 80, 0, 30)
+    container.Position = UDim2.new(0, 20, 0, 20)
+    container.BackgroundTransparency = 1
+    container.Parent = screenGui
+    
+    -- Toggle button (no background)
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Name = "ToggleBtn"
+    toggleBtn.Size = UDim2.new(1, 0, 1, 0)
+    toggleBtn.BackgroundTransparency = 1
+    toggleBtn.Text = "OFF"
+    toggleBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+    toggleBtn.Font = Enum.Font.SourceSansBold
+    toggleBtn.TextSize = 16
+    toggleBtn.TextStrokeTransparency = 0.5
+    toggleBtn.Parent = container
+    
+    -- Make draggable
+    makeDraggable(toggleBtn, container)
+    
+    -- Toggle functionality
+    toggleBtn.MouseButton1Click:Connect(function()
+        toggleNoclip(not NoclipEnabled)
+        if NoclipEnabled then
+            toggleBtn.Text = "ON"
+            toggleBtn.TextColor3 = Color3.fromRGB(100, 255, 100)
+        else
+            toggleBtn.Text = "OFF"
+            toggleBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+        end
     end)
 end
 
-setupPlayerOnlyNoclip()
+createNoclipGui()
 
 local map = workspace:WaitForChild("Map")
 local scannedContainers = {}
