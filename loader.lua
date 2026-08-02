@@ -191,6 +191,10 @@ local scriptList = {
 	[13534885817726] = { -- Broken Blade
 		Name = "Broken Blade",
 		Url = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/brokenblade.lua"
+	},
+	[99416896791343] = { -- Coin Flip
+		Name = "Coin Flip",
+		Url = "https://raw.githubusercontent.com/chocoScripting/loader/refs/heads/main/coinflip.lua"
 	}
 }
 
