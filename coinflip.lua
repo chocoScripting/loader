@@ -16,6 +16,7 @@ local RunService = game:GetService("RunService")
 local IsRunning = true
 local AutoFlip = false
 local AutoUpgrade = false
+local AutoRebirth = false
 
 --// Upgrade list in order
 local Upgrades = {
@@ -30,6 +31,7 @@ local Upgrades = {
 --// Get RemoteEvents
 local CoinFlipRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("CoinFlipResult")
 local PurchaseUpgradeRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("PurchaseUpgrade")
+local RebirthRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("RebirthRequested")
 
 --// Auto Flip Toggle
 mainPage:CreateToggle("Auto Flip", false, function(value)
@@ -41,6 +43,12 @@ end)
 mainPage:CreateToggle("Auto Upgrade", false, function(value)
     AutoUpgrade = value
     Window:Notify("Auto Upgrade", value and "Enabled" or "Disabled", 2)
+end)
+
+--// Auto Rebirth Toggle
+mainPage:CreateToggle("Auto Rebirth", false, function(value)
+    AutoRebirth = value
+    Window:Notify("Auto Rebirth", value and "Enabled" or "Disabled", 2)
 end)
 
 --// Auto Flip Loop (Heartbeat-based)
@@ -84,12 +92,31 @@ task.spawn(function()
     end
 end)
 
+--// Auto Rebirth Loop (Heartbeat-based)
+local RebirthDelay = 1
+local LastRebirthTime = 0
+
+task.spawn(function()
+    RunService.Heartbeat:Connect(function(deltaTime)
+        if IsRunning and AutoRebirth then
+            LastRebirthTime = LastRebirthTime + deltaTime
+            if LastRebirthTime >= RebirthDelay then
+                pcall(function()
+                    RebirthRemote:InvokeServer()
+                end)
+                LastRebirthTime = 0
+            end
+        end
+    end)
+end)
+
 --// Settings Page - Destroy GUI Button
 settingsPage:CreateButton("Destroy GUI", function()
     --// Stop all running features
     IsRunning = false
     AutoFlip = false
     AutoUpgrade = false
+    AutoRebirth = false
 
     --// Destroy the GUI
     Window:Destroy()
