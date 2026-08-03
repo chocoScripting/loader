@@ -10,6 +10,7 @@ local settingsPage = Window:CreatePage("Settings")
 
 --// Services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 --// Variables
 local IsRunning = true
@@ -42,16 +43,22 @@ mainPage:CreateToggle("Auto Upgrade", false, function(value)
     Window:Notify("Auto Upgrade", value and "Enabled" or "Disabled", 2)
 end)
 
---// Auto Flip Loop
+--// Auto Flip Loop (Heartbeat-based)
+local FlipDelay = 0.1
+local LastFlipTime = 0
+
 task.spawn(function()
-    while IsRunning do
-        if AutoFlip then
-            pcall(function()
-                CoinFlipRemote:FireServer()
-            end)
+    RunService.Heartbeat:Connect(function(deltaTime)
+        if IsRunning and AutoFlip then
+            LastFlipTime = LastFlipTime + deltaTime
+            if LastFlipTime >= FlipDelay then
+                pcall(function()
+                    CoinFlipRemote:FireServer()
+                end)
+                LastFlipTime = 0
+            end
         end
-        task.wait(0.1)
-    end
+    end)
 end)
 
 --// Auto Upgrade Loop
