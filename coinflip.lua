@@ -11,7 +11,6 @@ local settingsPage = Window:CreatePage("Settings")
 --// Services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
 
 --// Variables
 local IsRunning = true
@@ -21,7 +20,6 @@ local AutoUpgrade = false
 local AutoRebirth = false
 local AutoEquipLoadout = false
 local AutoAscend = false
-local HideRebirthGUI = false
 
 --// Upgrade list in order
 local Upgrades = {
@@ -105,18 +103,6 @@ mainPage:CreateToggle("Auto Ascend", false, function(value)
         ToggleAll = false
     end
     Window:Notify("Auto Ascend", value and "Enabled" or "Disabled", 2)
-end)
-
---// Hide Rebirth GUI Toggle (not included in Toggle All)
-mainPage:CreateToggle("Hide Rebirth GUI", false, function(value)
-    HideRebirthGUI = value
-    pcall(function()
-        local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-        local MainGame = PlayerGui:WaitForChild("MAINGAME")
-        local RebirthAnimOverlay = MainGame:WaitForChild("RebirthAnimOverlay")
-        RebirthAnimOverlay.Visible = not value
-    end)
-    Window:Notify("Hide Rebirth GUI", value and "Enabled" or "Disabled", 2)
 end)
 
 --// Auto Flip Loop (Heartbeat-based)
@@ -215,20 +201,6 @@ task.spawn(function()
     end)
 end)
 
---// Hide Rebirth GUI Loop (Heartbeat-based)
-task.spawn(function()
-    RunService.Heartbeat:Connect(function()
-        if IsRunning and HideRebirthGUI then
-            pcall(function()
-                local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-                local MainGame = PlayerGui:WaitForChild("MAINGAME")
-                local RebirthAnimOverlay = MainGame:WaitForChild("RebirthAnimOverlay")
-                RebirthAnimOverlay.Visible = false
-            end)
-        end
-    end)
-end)
-
 --// Settings Page - Destroy GUI Button
 settingsPage:CreateButton("Destroy GUI", function()
     --// Stop all running features
@@ -239,7 +211,6 @@ settingsPage:CreateButton("Destroy GUI", function()
     AutoRebirth = false
     AutoEquipLoadout = false
     AutoAscend = false
-    HideRebirthGUI = false
 
     --// Destroy the GUI
     Window:Destroy()
