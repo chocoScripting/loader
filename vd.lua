@@ -1,52 +1,5 @@
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
 
--- =========================
--- AUTO GENERATOR
--- =========================
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local RunService = game:GetService("RunService")
-
-local function autoGenerator()
-    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
-    local skillCheckGui = playerGui:FindFirstChild("SkillCheckPromptGui")
-    
-    if not skillCheckGui then return end
-    
-    local check = skillCheckGui:FindFirstChild("Check")
-    if not check then return end
-    
-    local goal = check:FindFirstChild("Goal")
-    local line = check:FindFirstChild("Line")
-    
-    if not goal or not line then return end
-    
-    -- Track when Goal's AbsoluteRotation is available (non-zero)
-    local targetRotation = nil
-    
-    -- Monitor Goal's AbsoluteRotation
-    goal:GetPropertyChangedSignal("AbsoluteRotation"):Connect(function()
-        if goal.AbsoluteRotation ~= 0 then
-            targetRotation = goal.AbsoluteRotation
-        end
-    end)
-    
-    -- Monitor Line's AbsoluteRotation and fire when it matches target
-    line:GetPropertyChangedSignal("AbsoluteRotation"):Connect(function()
-        if targetRotation and line.AbsoluteRotation == targetRotation then
-            local args = {
-                workspace:WaitForChild("Map"):WaitForChild("Generators"):WaitForChild("Generator"):WaitForChild("GeneratorPoint1"),
-                true
-            }
-            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Generator"):WaitForChild("RepairEvent"):FireServer(unpack(args))
-            targetRotation = nil -- Reset to prevent multiple fires
-        end
-    end)
-end
-
--- Start auto generator
-autoGenerator()
-
 local map = workspace:WaitForChild("Map")
 local scannedContainers = {}
 local function setupGenerator(generator)
