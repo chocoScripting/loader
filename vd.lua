@@ -1,139 +1,51 @@
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
 
+-- =========================
+-- AUTO GENERATOR
+-- =========================
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
 
--- =========================
--- FULL NOCLIP WITH TOGGLE GUI
--- =========================
-local NoclipEnabled = false
-local NoclipConnection = nil
-
--- Helper: Make Frame Draggable
-local function makeDraggable(dragPart, mainPart)
-    local dragging = false
-    local dragInput
-    local dragStart
-    local startPos
-
-    local function update(input)
-        local delta = input.Position - dragStart
-        mainPart.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-
-    local conn1 = dragPart.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = mainPart.Position
-
-            local connChanged
-            connChanged = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    if connChanged then connChanged:Disconnect() end
-                end
-            end)
-        end
-    end)
-
-    local conn2 = dragPart.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-
-    local conn3 = UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            update(input)
-        end
-    end)
-
-    return {conn1, conn2, conn3}
-end
-
--- Toggle Noclip Function
-local function toggleNoclip(enabled)
-    NoclipEnabled = enabled
-    
-    if NoclipConnection then
-        NoclipConnection:Disconnect()
-        NoclipConnection = nil
-    end
-    
-    if enabled then
-        NoclipConnection = game:GetService("RunService").Stepped:Connect(function()
-            local char = LocalPlayer.Character
-            if char then
-                for _, part in ipairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
-                end
-            end
-        end)
-    else
-        -- Re-enable collision
-        local char = LocalPlayer.Character
-        if char then
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
-            end
-        end
-    end
-end
-
--- Create Small Toggle GUI
-local function createNoclipGui()
+local function autoGenerator()
     local playerGui = LocalPlayer:WaitForChild("PlayerGui")
-    local existing = playerGui:FindFirstChild("NoclipGui")
-    if existing then existing:Destroy() end
+    local skillCheckGui = playerGui:FindFirstChild("SkillCheckPromptGui")
     
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "NoclipGui"
-    screenGui.ResetOnSpawn = false
-    screenGui.Parent = playerGui
+    if not skillCheckGui then return end
     
-    -- Draggable container (no background)
-    local container = Instance.new("Frame")
-    container.Name = "Container"
-    container.Size = UDim2.new(0, 80, 0, 30)
-    container.Position = UDim2.new(0, 20, 0, 20)
-    container.BackgroundTransparency = 1
-    container.Parent = screenGui
+    local check = skillCheckGui:FindFirstChild("Check")
+    if not check then return end
     
-    -- Toggle button (no background)
-    local toggleBtn = Instance.new("TextButton")
-    toggleBtn.Name = "ToggleBtn"
-    toggleBtn.Size = UDim2.new(1, 0, 1, 0)
-    toggleBtn.BackgroundTransparency = 1
-    toggleBtn.Text = "OFF"
-    toggleBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
-    toggleBtn.Font = Enum.Font.SourceSansBold
-    toggleBtn.TextSize = 16
-    toggleBtn.TextStrokeTransparency = 0.5
-    toggleBtn.Parent = container
+    local goal = check:FindFirstChild("Goal")
+    local line = check:FindFirstChild("Line")
     
-    -- Make draggable
-    makeDraggable(toggleBtn, container)
+    if not goal or not line then return end
     
-    -- Toggle functionality
-    toggleBtn.MouseButton1Click:Connect(function()
-        toggleNoclip(not NoclipEnabled)
-        if NoclipEnabled then
-            toggleBtn.Text = "ON"
-            toggleBtn.TextColor3 = Color3.fromRGB(100, 255, 100)
-        else
-            toggleBtn.Text = "OFF"
-            toggleBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+    -- Track when Goal's AbsoluteRotation is available (non-zero)
+    local targetRotation = nil
+    
+    -- Monitor Goal's AbsoluteRotation
+    goal:GetPropertyChangedSignal("AbsoluteRotation"):Connect(function()
+        if goal.AbsoluteRotation ~= 0 then
+            targetRotation = goal.AbsoluteRotation
+        end
+    end)
+    
+    -- Monitor Line's AbsoluteRotation and fire when it matches target
+    line:GetPropertyChangedSignal("AbsoluteRotation"):Connect(function()
+        if targetRotation and line.AbsoluteRotation == targetRotation then
+            local args = {
+                workspace:WaitForChild("Map"):WaitForChild("Generators"):WaitForChild("Generator"):WaitForChild("GeneratorPoint1"),
+                true
+            }
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Generator"):WaitForChild("RepairEvent"):FireServer(unpack(args))
+            targetRotation = nil -- Reset to prevent multiple fires
         end
     end)
 end
 
-createNoclipGui()
+-- Start auto generator
+autoGenerator()
 
 local map = workspace:WaitForChild("Map")
 local scannedContainers = {}
@@ -147,7 +59,7 @@ local function setupGenerator(generator)
         billboard.Name = "GeneratorProgressGui"
         billboard.Adornee = generator.PrimaryPart or generator:FindFirstChildWhichIsA("BasePart")
         billboard.Size = UDim2.new(0, 100, 0, 30)
-        billboard.StudsOffset = Vector3.new(0, 4, 0)
+        billboard.StudsOffset = Vector3.new(0, 0, 0)
         billboard.AlwaysOnTop = true
         billboard.Parent = generator
     end
@@ -166,10 +78,11 @@ local function setupGenerator(generator)
     local function updateProgress()
         local rawProgress = generator:GetAttribute("RepairProgress") or 0
         local progress = math.ceil(rawProgress)
-        textLabel.Text = "⚙️" .. tostring(progress) .. "%"
         if progress >= 100 then
+            textLabel.Text = "[DONE]"
             textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
         else
+            textLabel.Text = "[" .. tostring(progress) .. "%]"
             textLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
         end
     end
@@ -200,7 +113,7 @@ local function setupExitLever(lever)
         textLabel.Font = Enum.Font.SourceSansBold
         textLabel.TextStrokeTransparency = 0.7
         textLabel.TextSize = 16
-        textLabel.Text = "Lever"
+        textLabel.Text = "[LEVER]"
         textLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
         textLabel.Parent = billboard
     end
